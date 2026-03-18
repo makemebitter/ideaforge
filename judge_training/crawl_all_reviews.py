@@ -16,6 +16,7 @@ Usage:
 
 import csv
 import json
+import os
 import time
 import argparse
 import re
@@ -28,7 +29,11 @@ from collections import defaultdict
 
 print = functools.partial(print, flush=True)  # type: ignore
 
-RESEARCH_DATA = Path(__file__).parent.parent / "research_data"
+_RESOURCES_DIR = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+if _RESOURCES_DIR:
+    RESEARCH_DATA = Path(_RESOURCES_DIR) / "research_data"
+else:
+    RESEARCH_DATA = Path(__file__).parent.parent / "research_data"
 HEADERS = {"User-Agent": "Mozilla/5.0 (research-bot; academic use)"}
 
 

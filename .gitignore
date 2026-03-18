@@ -29,6 +29,7 @@ Thumbs.db
 *.pkl
 *.pdf
 research_data/
+resources/
 papers/
 neurips_papers/
 icml_papers/

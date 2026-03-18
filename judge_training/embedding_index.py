@@ -16,6 +16,7 @@ Usage:
 import json
 import argparse
 import functools
+import os
 from pathlib import Path
 
 import numpy as np
@@ -25,8 +26,13 @@ from sentence_transformers import SentenceTransformer
 print = functools.partial(print, flush=True)  # type: ignore
 
 BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
-EMBED_DIR = BASE_DIR / "embeddings"
+_RESOURCES_DIR = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+if _RESOURCES_DIR:
+    DATA_DIR = Path(_RESOURCES_DIR) / "data"
+    EMBED_DIR = Path(_RESOURCES_DIR) / "embeddings"
+else:
+    DATA_DIR = BASE_DIR / "data"
+    EMBED_DIR = BASE_DIR / "embeddings"
 
 DEFAULT_MODEL = "all-MiniLM-L6-v2"
 

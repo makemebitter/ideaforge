@@ -17,6 +17,7 @@ Usage:
 """
 
 import json
+import os
 import re
 import argparse
 import functools
@@ -29,9 +30,15 @@ from typing import Optional
 print = functools.partial(print, flush=True)  # type: ignore
 
 BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
-SKILLS_DIR = BASE_DIR / "skills"
-LOG_DIR = BASE_DIR / "output" / "logs"
+_RESOURCES_DIR = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+if _RESOURCES_DIR:
+    DATA_DIR = Path(_RESOURCES_DIR) / "data"
+    SKILLS_DIR = Path(_RESOURCES_DIR) / "skills"
+    LOG_DIR = Path(_RESOURCES_DIR) / "output" / "logs"
+else:
+    DATA_DIR = BASE_DIR / "data"
+    SKILLS_DIR = BASE_DIR / "skills"
+    LOG_DIR = BASE_DIR / "output" / "logs"
 
 logger = logging.getLogger("eval_harness")
 

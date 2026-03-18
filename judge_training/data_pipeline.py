@@ -14,13 +14,19 @@ Output:
 import json
 import csv
 import hashlib
+import os
 import random
 from pathlib import Path
 from collections import defaultdict
 from typing import Optional
 
-RESEARCH_DATA = Path(__file__).parent.parent / "research_data"
-OUTPUT_DIR = Path(__file__).parent / "data"
+_RESOURCES_DIR = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+if _RESOURCES_DIR:
+    RESEARCH_DATA = Path(_RESOURCES_DIR) / "research_data"
+    OUTPUT_DIR = Path(_RESOURCES_DIR) / "data"
+else:
+    RESEARCH_DATA = Path(__file__).parent.parent / "research_data"
+    OUTPUT_DIR = Path(__file__).parent / "data"
 
 
 def parse_iclr_topic_json(filepath: Path, topic: str) -> Optional[dict]:

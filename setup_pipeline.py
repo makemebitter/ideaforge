@@ -6,17 +6,20 @@ One-script setup that crawls papers, builds training data, creates the FAISS
 embedding index, and verifies the pre-trained judge — getting you to the point
 where you can immediately run the adversarial idea refiner.
 
+All outputs go to a `resources/` folder (configurable via --resources-dir) so
+the setup does not interfere with existing local data.
+
 Usage:
     python setup_pipeline.py                    # Full setup (crawl + build)
     python setup_pipeline.py --skip-crawl       # Skip crawling, just build from existing data
-    python setup_pipeline.py --years 2024 2025  # Crawl specific years only
+    python setup_pipeline.py --test             # Tiny-scale test to verify pipeline works
     python setup_pipeline.py --check            # Just verify everything is ready
 
 Prerequisites:
     - Python 3.10+
     - pip install -r requirements.txt
     - pip install sentence-transformers faiss-cpu numpy
-    - OpenReview account (set in config.py or pass --email / --password)
+    - OpenReview account (set in config.py or OPENREVIEW_EMAIL / OPENREVIEW_PASSWORD env vars)
     - Claude Code CLI installed and authenticated (for idea refinement)
 """
 
@@ -32,10 +35,21 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 JUDGE_DIR = BASE_DIR / "judge_training"
-DATA_DIR = JUDGE_DIR / "data"
-EMBED_DIR = JUDGE_DIR / "embeddings"
-SKILLS_DIR = JUDGE_DIR / "skills"
-RESEARCH_DIR = BASE_DIR / "research_data"
+
+# Default resources directory — all pipeline outputs go here
+DEFAULT_RESOURCES_DIR = BASE_DIR / "resources"
+
+
+def get_resource_paths(resources_dir: Path) -> dict:
+    """Resolve all resource paths relative to the resources directory."""
+    return {
+        "resources_dir": resources_dir,
+        "research_data": resources_dir / "research_data",
+        "data": resources_dir / "data",
+        "embeddings": resources_dir / "embeddings",
+        "skills": resources_dir / "skills",
+        "output": resources_dir / "output",
+    }
 
 
 def print_header(msg: str):
@@ -68,7 +82,7 @@ def check_dependencies() -> list[str]:
 
 
 def check_config() -> tuple[str, str]:
-    """Check for OpenReview credentials."""
+    """Check for OpenReview credentials in config.py or env vars."""
     # Try config.py
     config_path = BASE_DIR / "config.py"
     if config_path.exists():
@@ -89,65 +103,89 @@ def check_claude_cli() -> bool:
     return shutil.which("claude") is not None
 
 
-def run_script(script_path: str, args: list[str] = None, cwd: str = None):
-    """Run a Python script as subprocess."""
+def run_script(script_path: str, args: list[str] = None, cwd: str = None,
+               env_extra: dict = None):
+    """Run a Python script as subprocess with optional extra env vars."""
     cmd = [sys.executable, script_path] + (args or [])
+    env = os.environ.copy()
+    if env_extra:
+        env.update(env_extra)
     result = subprocess.run(
         cmd,
         cwd=cwd or str(BASE_DIR),
         capture_output=False,
+        env=env,
     )
     if result.returncode != 0:
         raise RuntimeError(f"Script failed: {script_path} (exit code {result.returncode})")
 
 
-def crawl_papers(years: list[int], email: str, password: str):
+def crawl_papers(years: list[int], email: str, password: str,
+                 paths: dict, test_mode: bool = False):
     """Stage 1: Crawl papers and reviews from OpenReview."""
     print_header("Stage 1: Crawling Papers + Reviews")
+
+    env_extra = {"IDEAFORGE_RESOURCES_DIR": str(paths["resources_dir"])}
+
+    if test_mode:
+        print("  TEST MODE: crawling only ICLR for 1 year")
+        years = [years[0]]
 
     for year in years:
         print(f"\n--- Crawling ICLR {year} ---")
         args = ["--year", str(year)]
         if email and password:
             args += ["--email", email, "--password", password]
+        args += ["--output", str(paths["research_data"] / "iclr")]
         try:
             run_script(
                 str(BASE_DIR / "data_pipeline" / "openreview_crawler.py"),
-                args,
+                args, env_extra=env_extra,
             )
         except RuntimeError as e:
             print(f"Warning: ICLR {year} crawl failed: {e}")
 
+    if test_mode:
+        print("  TEST MODE: skipping ICML/NeurIPS crawl")
+        return
+
     # ICML
     print(f"\n--- Crawling ICML ---")
     try:
-        run_script(str(BASE_DIR / "crawl_icml.py"))
+        icml_args = ["--output", str(paths["research_data"] / "icml")]
+        run_script(str(BASE_DIR / "crawl_icml.py"), icml_args,
+                   env_extra=env_extra)
     except RuntimeError as e:
         print(f"Warning: ICML crawl failed: {e}")
 
     # NeurIPS
     print(f"\n--- Crawling NeurIPS ---")
     try:
-        run_script(str(BASE_DIR / "crawl_neurips.py"))
+        neurips_args = ["--output", str(paths["research_data"] / "neurips")]
+        run_script(str(BASE_DIR / "crawl_neurips.py"), neurips_args,
+                   env_extra=env_extra)
     except RuntimeError as e:
         print(f"Warning: NeurIPS crawl failed: {e}")
 
 
-def build_training_data():
+def build_training_data(paths: dict):
     """Stage 2: Parse reviews into train/test splits."""
     print_header("Stage 2: Building Judge Training Data")
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    paths["data"].mkdir(parents=True, exist_ok=True)
+
+    env_extra = {"IDEAFORGE_RESOURCES_DIR": str(paths["resources_dir"])}
 
     print("Parsing crawled reviews into train/test JSONL...")
     run_script(
         str(JUDGE_DIR / "data_pipeline.py"),
         cwd=str(JUDGE_DIR),
+        env_extra=env_extra,
     )
 
     # Verify
-    train_path = DATA_DIR / "train.jsonl"
-    test_path = DATA_DIR / "test.jsonl"
+    train_path = paths["data"] / "train.jsonl"
+    test_path = paths["data"] / "test.jsonl"
     if train_path.exists() and test_path.exists():
         train_count = sum(1 for _ in open(train_path))
         test_count = sum(1 for _ in open(test_path))
@@ -156,20 +194,23 @@ def build_training_data():
         print("Warning: Training data files not found after pipeline run")
 
 
-def build_embeddings():
+def build_embeddings(paths: dict):
     """Stage 3: Build FAISS embedding index."""
     print_header("Stage 3: Building FAISS Embedding Index")
 
-    EMBED_DIR.mkdir(parents=True, exist_ok=True)
+    paths["embeddings"].mkdir(parents=True, exist_ok=True)
+
+    env_extra = {"IDEAFORGE_RESOURCES_DIR": str(paths["resources_dir"])}
 
     print("Building embeddings with all-MiniLM-L6-v2 (downloads ~80MB model on first run)...")
     run_script(
         str(JUDGE_DIR / "embedding_index.py"),
         cwd=str(JUDGE_DIR),
+        env_extra=env_extra,
     )
 
     # Verify
-    faiss_path = EMBED_DIR / "paper_embeddings.faiss"
+    faiss_path = paths["embeddings"] / "paper_embeddings.faiss"
     if faiss_path.exists():
         size_mb = faiss_path.stat().st_size / (1024 * 1024)
         print(f"Created FAISS index: {size_mb:.1f} MB")
@@ -177,56 +218,97 @@ def build_embeddings():
         print("Warning: FAISS index not found after build")
 
 
-def generate_skills():
+def generate_skills(paths: dict):
     """Stage 3b: Generate skill files if not already present."""
-    index_path = SKILLS_DIR / "index.json"
+    index_path = paths["skills"] / "index.json"
     if index_path.exists():
         with open(index_path) as f:
             skills = json.load(f)
         print(f"Skill library already exists ({len(skills)} skills)")
         return
 
+    # Also check the default judge_training/skills location (ships with repo)
+    default_skills = JUDGE_DIR / "skills" / "index.json"
+    if default_skills.exists() and not index_path.exists():
+        # Copy pre-built skills to resources dir
+        print("Copying pre-built skill library to resources directory...")
+        skills_src = JUDGE_DIR / "skills"
+        skills_dst = paths["skills"]
+        if skills_src != skills_dst:
+            shutil.copytree(str(skills_src), str(skills_dst), dirs_exist_ok=True)
+        with open(index_path) as f:
+            skills = json.load(f)
+        print(f"Copied skill library ({len(skills)} skills)")
+        return
+
     print_header("Stage 3b: Generating Skill Library")
+    env_extra = {"IDEAFORGE_RESOURCES_DIR": str(paths["resources_dir"])}
     run_script(
         str(JUDGE_DIR / "generate_skills.py"),
         cwd=str(JUDGE_DIR),
+        env_extra=env_extra,
     )
 
 
-def verify_setup() -> dict:
+def copy_judge_prompt(paths: dict):
+    """Copy the pre-trained judge prompt to resources if it exists."""
+    src = JUDGE_DIR / "output" / "best_judge_prompt.md"
+    dst_dir = paths["output"]
+    dst = dst_dir / "best_judge_prompt.md"
+    if src.exists() and not dst.exists():
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(src), str(dst))
+        print(f"Copied pre-trained judge prompt to {dst}")
+    # Also copy stage1 prompt if present
+    s1_src = JUDGE_DIR / "output" / "stage1_best_prompt.md"
+    s1_dst = dst_dir / "stage1_best_prompt.md"
+    if s1_src.exists() and not s1_dst.exists():
+        shutil.copy2(str(s1_src), str(s1_dst))
+
+
+def verify_setup(paths: dict) -> dict:
     """Check that everything is ready for the idea refiner."""
     print_header("Verification")
 
     checks = {}
 
-    # Judge prompt
-    prompt_path = JUDGE_DIR / "output" / "best_judge_prompt.md"
-    checks["judge_prompt"] = prompt_path.exists()
-    print(f"  Judge prompt:      {'OK' if checks['judge_prompt'] else 'MISSING'} ({prompt_path})")
+    # Judge prompt (check resources dir first, then default location)
+    prompt_path = paths["output"] / "best_judge_prompt.md"
+    default_prompt = JUDGE_DIR / "output" / "best_judge_prompt.md"
+    checks["judge_prompt"] = prompt_path.exists() or default_prompt.exists()
+    found_at = prompt_path if prompt_path.exists() else default_prompt
+    print(f"  Judge prompt:      {'OK' if checks['judge_prompt'] else 'MISSING'} ({found_at})")
 
     # Skills
-    index_path = SKILLS_DIR / "index.json"
-    checks["skills"] = index_path.exists()
+    index_path = paths["skills"] / "index.json"
+    default_index = JUDGE_DIR / "skills" / "index.json"
+    checks["skills"] = index_path.exists() or default_index.exists()
     if checks["skills"]:
-        with open(index_path) as f:
+        found_at = index_path if index_path.exists() else default_index
+        with open(found_at) as f:
             n_skills = len(json.load(f))
         print(f"  Skill library:     OK ({n_skills} skills)")
     else:
         print(f"  Skill library:     MISSING")
 
     # FAISS index
-    faiss_path = EMBED_DIR / "paper_embeddings.faiss"
-    checks["faiss"] = faiss_path.exists()
-    print(f"  FAISS index:       {'OK' if checks['faiss'] else 'MISSING (run without --skip-crawl to build)'}")
+    faiss_path = paths["embeddings"] / "paper_embeddings.faiss"
+    default_faiss = JUDGE_DIR / "embeddings" / "paper_embeddings.faiss"
+    checks["faiss"] = faiss_path.exists() or default_faiss.exists()
+    print(f"  FAISS index:       {'OK' if checks['faiss'] else 'MISSING (run setup to build)'}")
 
     # Training data
-    train_path = DATA_DIR / "train.jsonl"
-    checks["training_data"] = train_path.exists()
-    print(f"  Training data:     {'OK' if checks['training_data'] else 'MISSING (run without --skip-crawl to build)'}")
+    train_path = paths["data"] / "train.jsonl"
+    default_train = JUDGE_DIR / "data" / "train.jsonl"
+    checks["training_data"] = train_path.exists() or default_train.exists()
+    print(f"  Training data:     {'OK' if checks['training_data'] else 'MISSING (run setup to build)'}")
 
     # Claude CLI
     checks["claude_cli"] = check_claude_cli()
     print(f"  Claude Code CLI:   {'OK' if checks['claude_cli'] else 'MISSING — install from https://docs.anthropic.com/en/docs/claude-code'}")
+
+    # Resources dir
+    print(f"\n  Resources dir:     {paths['resources_dir']}")
 
     # Summary
     ready = checks["judge_prompt"] and checks["skills"] and checks["claude_cli"]
@@ -247,7 +329,7 @@ def verify_setup() -> dict:
     elif ready:
         print("  BASIC CHECKS PASSED — can run the refiner without FAISS retrieval.")
         print("  For full judge accuracy, build the FAISS index by running:")
-        print("    python setup_pipeline.py  (without --skip-crawl)")
+        print("    python setup_pipeline.py")
     else:
         print("  SETUP INCOMPLETE — see missing items above.")
 
@@ -272,12 +354,15 @@ def main():
         help="Which years to crawl (default: 2024 2025)",
     )
     parser.add_argument(
-        "--email",
-        help="OpenReview email (or set in config.py / OPENREVIEW_EMAIL env var)",
+        "--resources-dir",
+        type=str,
+        default=str(DEFAULT_RESOURCES_DIR),
+        help=f"Directory for all pipeline outputs (default: {DEFAULT_RESOURCES_DIR})",
     )
     parser.add_argument(
-        "--password",
-        help="OpenReview password (or set in config.py / OPENREVIEW_PASSWORD env var)",
+        "--test",
+        action="store_true",
+        help="Tiny-scale test mode: crawl ~5 papers per venue to verify pipeline works end-to-end",
     )
     parser.add_argument(
         "--check",
@@ -286,11 +371,22 @@ def main():
     )
     args = parser.parse_args()
 
-    print_header("IdeaForge Setup Pipeline")
+    resources_dir = Path(args.resources_dir).resolve()
+    paths = get_resource_paths(resources_dir)
+
+    # Set the env var so child scripts can find resources
+    os.environ["IDEAFORGE_RESOURCES_DIR"] = str(resources_dir)
+
+    if args.test:
+        print_header("IdeaForge Setup Pipeline (TEST MODE)")
+        print("  Running tiny-scale test to verify pipeline works end-to-end.")
+        print(f"  All outputs go to: {resources_dir}\n")
+    else:
+        print_header("IdeaForge Setup Pipeline")
 
     # Check only
     if args.check:
-        verify_setup()
+        verify_setup(paths)
         return
 
     # Check dependencies
@@ -300,46 +396,55 @@ def main():
         print(f"Install with: pip install {' '.join(missing)}")
         sys.exit(1)
 
-    # Get credentials
-    email = args.email or ""
-    password = args.password or ""
-    if not email or not password:
-        email, password = check_config()
+    # Create resources directory
+    resources_dir.mkdir(parents=True, exist_ok=True)
 
-    total_steps = 2 if args.skip_crawl else 4
+    # Get credentials from config.py or env vars
+    email, password = check_config()
+
+    total_steps = 3 if args.skip_crawl else 5
     step = 0
 
     if not args.skip_crawl:
-        if not email or not password:
+        if not email and not password:
             print("Warning: No OpenReview credentials found.")
-            print("Set via: --email/--password, config.py, or OPENREVIEW_EMAIL env var")
+            print("Set via config.py or OPENREVIEW_EMAIL / OPENREVIEW_PASSWORD env vars")
             print("Some crawlers may still work without auth.\n")
 
         # Stage 1: Crawl
         step += 1
         print_step(step, total_steps, "Crawling papers and reviews...")
-        crawl_papers(args.years, email, password)
+        crawl_papers(args.years, email, password, paths, test_mode=args.test)
 
         # Stage 2: Build training data
         step += 1
         print_step(step, total_steps, "Building judge training data...")
-        build_training_data()
+        build_training_data(paths)
 
     # Stage 3: Build embeddings
     step += 1
     print_step(step, total_steps, "Building FAISS embedding index...")
-    if DATA_DIR.exists() and (DATA_DIR / "train.jsonl").exists():
-        build_embeddings()
+    data_path = paths["data"] / "train.jsonl"
+    if data_path.exists():
+        build_embeddings(paths)
     else:
         print("  Skipped — no training data found. Run without --skip-crawl first.")
 
-    # Stage 3b: Verify skills
+    # Stage 4: Copy/generate skills and judge prompt
     step += 1
-    print_step(step, total_steps, "Checking skill library...")
-    generate_skills()
+    print_step(step, total_steps, "Setting up skill library + judge prompt...")
+    generate_skills(paths)
+    copy_judge_prompt(paths)
 
     # Verify
-    verify_setup()
+    step += 1
+    print_step(step, total_steps, "Verifying setup...")
+    verify_setup(paths)
+
+    if args.test:
+        print("\n  TEST MODE COMPLETE — pipeline works end-to-end!")
+        print(f"  Test outputs are in: {resources_dir}")
+        print("  Run without --test for full setup.")
 
 
 if __name__ == "__main__":

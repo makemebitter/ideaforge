@@ -32,15 +32,24 @@ from collections import defaultdict, Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
+import os
+
 from claude_utils import run_claude_oneshot
 
 print = functools.partial(print, flush=True)  # type: ignore
 
 BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
-SKILLS_DIR = BASE_DIR / "skills"
-RESEARCH_DATA = BASE_DIR.parent / "research_data"
-LOG_DIR = BASE_DIR / "output" / "logs"
+_RESOURCES_DIR = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+if _RESOURCES_DIR:
+    DATA_DIR = Path(_RESOURCES_DIR) / "data"
+    SKILLS_DIR = Path(_RESOURCES_DIR) / "skills"
+    RESEARCH_DATA = Path(_RESOURCES_DIR) / "research_data"
+    LOG_DIR = Path(_RESOURCES_DIR) / "output" / "logs"
+else:
+    DATA_DIR = BASE_DIR / "data"
+    SKILLS_DIR = BASE_DIR / "skills"
+    RESEARCH_DATA = BASE_DIR.parent / "research_data"
+    LOG_DIR = BASE_DIR / "output" / "logs"
 
 logger = logging.getLogger("generate_skills")
 

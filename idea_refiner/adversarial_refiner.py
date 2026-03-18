@@ -931,7 +931,8 @@ def get_frontier_context(domain: str, exp_dir: Optional[Path] = None,
     Uses the downloaded paper corpus to identify areas with few papers
     but high potential, giving the idea generator better starting points.
     """
-    base = Path(__file__).parent.parent / "research_data"
+    _res = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+    base = Path(_res) / "research_data" if _res else Path(__file__).parent.parent / "research_data"
 
     # Gather paper titles and topics from the corpus for the prompt
     paper_samples = []
@@ -1209,9 +1210,15 @@ def _enrich_with_retrieval(turn_msg: str, idea_text: str) -> str:
 def _build_trained_judge_system_prompt(domain: str = "", phase: str = "explore", target_venues: str = "") -> str:
     """Build judge system prompt using the GEPA-optimized prompt + skill library + retrieval."""
     judge_training_dir = Path(__file__).parent.parent / "judge_training"
+    _res = os.environ.get("IDEAFORGE_RESOURCES_DIR")
 
-    # Load GEPA-optimized prompt if available, else use a calibration-aware default
-    optimized_path = judge_training_dir / "output" / "best_judge_prompt.md"
+    # Load GEPA-optimized prompt: check resources dir first, then default location
+    if _res:
+        optimized_path = Path(_res) / "output" / "best_judge_prompt.md"
+        if not optimized_path.exists():
+            optimized_path = judge_training_dir / "output" / "best_judge_prompt.md"
+    else:
+        optimized_path = judge_training_dir / "output" / "best_judge_prompt.md"
     if optimized_path.exists():
         core_prompt = optimized_path.read_text(encoding="utf-8")
         print(f"[TRAINED JUDGE] Loaded GEPA-optimized prompt ({len(core_prompt)} chars) from {optimized_path}")
@@ -1224,7 +1231,12 @@ def _build_trained_judge_system_prompt(domain: str = "", phase: str = "explore",
         )
         print(f"[TRAINED JUDGE] WARNING: No optimized prompt found at {optimized_path}, using default")
 
-    skills_dir = judge_training_dir / "skills"
+    if _res:
+        skills_dir = Path(_res) / "skills"
+        if not (skills_dir / "index.json").exists():
+            skills_dir = judge_training_dir / "skills"
+    else:
+        skills_dir = judge_training_dir / "skills"
     resources = _RESOURCES_BLOCK + f"""
 
 **TRAINED JUDGE RESOURCES (use these for calibrated evaluation):**
