@@ -252,17 +252,17 @@ git clone https://github.com/makemebitter/ideaforge.git
 cd ideaforge
 pip install -r requirements.txt
 
-# Generate a research idea right away
-python idea_refiner/adversarial_refiner.py \
-  --from-scratch \
+# Verify everything is ready (checks judge, skills, FAISS index, Claude CLI)
+python ideaforge.py --check
+
+# Generate a research idea
+python ideaforge.py --run \
   --domain "your research area here" \
   --target-venues "ICML,NeurIPS,ICLR" \
-  --rounds 10 \
-  --use-trained-judge \
-  --min-critics 2
+  --rounds 10
 ```
 
-That's it — the Critic, Proposer, and Judge agents will start debating immediately using the shipped FAISS index and GEPA-trained judge.
+That's it — `ideaforge.py` is the single entry point. `--check` verifies the setup, `--run` launches the adversarial refiner with the shipped FAISS index and GEPA-trained judge.
 
 > **Prerequisites:** Python 3.10+, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code), and Anthropic API access.
 > The FAISS index ships via [Git LFS](https://git-lfs.com/) (~140MB). If you cloned without LFS, run `git lfs pull` first.

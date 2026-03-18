@@ -9,11 +9,12 @@ where you can immediately run the adversarial idea refiner.
 All outputs go to a `resources/` folder (configurable via --resources-dir) so
 the setup does not interfere with existing local data.
 
-Three modes:
-    python ideaforge.py --test        # No crawl — synthetic data, tests downstream pipeline
-    python ideaforge.py               # Normal — ~1,000 representative papers, safe QPS
-    python ideaforge.py --full        # Full crawl — all papers, use at your own risk
-    python ideaforge.py --check       # Just verify everything is ready
+Usage:
+    python ideaforge.py --check       # Verify everything is ready
+    python ideaforge.py --run -d "ML" # Generate ideas immediately (no setup needed)
+    python ideaforge.py               # Crawl ~1,000 papers, build training data
+    python ideaforge.py --full        # Full crawl — all ~50K papers
+    python ideaforge.py --test        # Synthetic data, tests downstream pipeline
 
 Prerequisites:
     - Python 3.10+
@@ -621,17 +622,11 @@ def verify_setup(paths: dict) -> dict:
         print("  ALL CHECKS PASSED — ready to run the adversarial idea refiner!")
         print()
         print("  Example:")
-        print('    python idea_refiner/adversarial_refiner.py \\')
-        print('      --from-scratch \\')
-        print('      --domain "your research domain" \\')
-        print('      --target-venues "ICML,NeurIPS,ICLR" \\')
-        print('      --rounds 40 \\')
-        print('      --use-trained-judge \\')
-        print('      --min-critics 2')
+        print('    python ideaforge.py --run --domain "your research area"')
     elif ready:
         print("  BASIC CHECKS PASSED — can run the refiner without FAISS retrieval.")
         print("  For full judge accuracy, build the FAISS index by running:")
-        print("    python setup_pipeline.py")
+        print("    python ideaforge.py")
     else:
         print("  SETUP INCOMPLETE — see missing items above.")
 
@@ -644,15 +639,18 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Modes:
-  --test   No crawling. Uses synthetic data to verify the downstream pipeline
-           (data parsing, embeddings, skills, judge prompt) works end-to-end.
+  --check  Verify setup status (judge, skills, FAISS index, Claude CLI).
 
-  (default) Crawls ~1,000 representative papers from ICLR (balanced across
-           accepted/rejected, multiple years) with conservative QPS (~15-20 min).
+  --run    Launch the adversarial idea refiner. Requires --domain.
+           Uses the shipped GEPA judge + FAISS index — works immediately.
+           Example: python ideaforge.py --run --domain "efficient training"
+
+  --test   No crawling. Uses synthetic data to verify the downstream pipeline.
+
+  (default) Crawls ~1,000 representative papers from ICLR (~15-20 min).
            A pre-built 50K FAISS index ships with the repo for immediate use.
 
   --full   Crawls ALL papers from ICLR/ICML/NeurIPS (~50K+). Takes 2-3 hours.
-           Use at your own risk — high API volume.
 """,
     )
     parser.add_argument(
@@ -688,6 +686,35 @@ Modes:
         action="store_true",
         help="Just verify setup status, don't build anything",
     )
+    parser.add_argument(
+        "--run",
+        action="store_true",
+        help="Run the adversarial idea refiner (uses shipped judge + FAISS index)",
+    )
+    parser.add_argument(
+        "--domain", "-d",
+        type=str,
+        default="",
+        help="Research domain for idea generation (used with --run)",
+    )
+    parser.add_argument(
+        "--target-venues",
+        type=str,
+        default="ICML,NeurIPS,ICLR",
+        help="Target venues, comma-separated (used with --run, default: ICML,NeurIPS,ICLR)",
+    )
+    parser.add_argument(
+        "--rounds", "-r",
+        type=int,
+        default=10,
+        help="Number of adversarial debate rounds (used with --run, default: 10)",
+    )
+    parser.add_argument(
+        "--min-critics",
+        type=int,
+        default=2,
+        help="Minimum independent critics before session can end (used with --run, default: 2)",
+    )
     args = parser.parse_args()
 
     resources_dir = Path(args.resources_dir).resolve()
@@ -695,6 +722,41 @@ Modes:
 
     # Set the env var so child scripts can find resources
     os.environ["IDEAFORGE_RESOURCES_DIR"] = str(resources_dir)
+
+    # --run: launch the adversarial idea refiner directly
+    if args.run:
+        if not args.domain:
+            print("Error: --run requires --domain (e.g. --domain 'efficient ML training')")
+            sys.exit(1)
+
+        # Quick verification
+        print_header("IdeaForge — Launching Adversarial Idea Refiner")
+        checks = verify_setup(paths)
+        ready = checks["judge_prompt"] and checks["skills"] and checks["claude_cli"]
+        if not ready:
+            print("\n  Setup incomplete — fix missing items above before running.")
+            sys.exit(1)
+
+        # Build refiner command
+        refiner_script = str(BASE_DIR / "idea_refiner" / "adversarial_refiner.py")
+        refiner_args = [
+            "--from-scratch",
+            "--domain", args.domain,
+            "--target-venues", args.target_venues,
+            "--rounds", str(args.rounds),
+            "--min-critics", str(args.min_critics),
+            "--use-trained-judge",
+        ]
+        print(f"\n  Starting refiner: domain='{args.domain}', "
+              f"rounds={args.rounds}, min-critics={args.min_critics}")
+        print(f"  Target venues: {args.target_venues}\n")
+        run_script(refiner_script, args=refiner_args)
+        return
+
+    # Check only
+    if args.check:
+        verify_setup(paths)
+        return
 
     # Determine mode
     if args.test:
@@ -712,11 +774,6 @@ Modes:
 
     print_header(f"IdeaForge Setup Pipeline ({mode_labels[mode]})")
     print(f"  All outputs go to: {resources_dir}\n")
-
-    # Check only
-    if args.check:
-        verify_setup(paths)
-        return
 
     # Check dependencies
     missing = check_dependencies()
