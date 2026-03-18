@@ -53,8 +53,10 @@ crawl_authors.py
 crawl_papers.py
 download_review_pdfs.py
 
-# Claude internal
-.claude/
+# Claude internal (ship settings.json and CLAUDE.md, ignore the rest)
+.claude/*
+!.claude/settings.json
+!.claude/CLAUDE.md
 .pytest_cache/
 idea_refiner/.pytest_cache/
 idea_refiner/test_*.py
