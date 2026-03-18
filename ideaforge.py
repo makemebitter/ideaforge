@@ -715,6 +715,11 @@ Modes:
         default=2,
         help="Minimum independent critics before session can end (used with --run, default: 2)",
     )
+    parser.add_argument(
+        "--dangerously-skip-permissions",
+        action="store_true",
+        help="Skip all Claude permission prompts (use with caution)",
+    )
     args = parser.parse_args()
 
     resources_dir = Path(args.resources_dir).resolve()
@@ -747,6 +752,8 @@ Modes:
             "--min-critics", str(args.min_critics),
             "--use-trained-judge",
         ]
+        if args.dangerously_skip_permissions:
+            refiner_args.append("--dangerously-skip-permissions")
         print(f"\n  Starting refiner: domain='{args.domain}', "
               f"rounds={args.rounds}, min-critics={args.min_critics}")
         print(f"  Target venues: {args.target_venues}\n")

@@ -608,6 +608,7 @@ def safe_print(text: str) -> None:
 # ---------------------------------------------------------------------------
 
 _CLAUDE_EXE: Optional[str] = None
+_SKIP_PERMISSIONS: bool = False
 
 
 def _get_claude_exe() -> str:
@@ -714,9 +715,10 @@ def run_claude_create(
     """
     turn_file = _write_turn_file(exp_dir, label, turn_message)
     exe = _get_claude_exe()
-    cmd = [
-        exe, "-p",
-        "--dangerously-skip-permissions",
+    cmd = [exe, "-p"]
+    if _SKIP_PERMISSIONS:
+        cmd.append("--dangerously-skip-permissions")
+    cmd += [
         "--model", model,
         "--session-id", session_id,
         "--append-system-prompt", system_prompt,
@@ -740,9 +742,10 @@ def run_claude_resume(
     """
     turn_file = _write_turn_file(exp_dir, label, turn_message)
     exe = _get_claude_exe()
-    cmd = [
-        exe, "-p",
-        "--dangerously-skip-permissions",
+    cmd = [exe, "-p"]
+    if _SKIP_PERMISSIONS:
+        cmd.append("--dangerously-skip-permissions")
+    cmd += [
         "--model", model,
         "-r", session_id,
         _file_ref(turn_file),
@@ -764,9 +767,10 @@ def run_claude_oneshot(
     """
     turn_file = _write_turn_file(exp_dir, label, prompt)
     exe = _get_claude_exe()
-    cmd = [
-        exe, "-p",
-        "--dangerously-skip-permissions",
+    cmd = [exe, "-p"]
+    if _SKIP_PERMISSIONS:
+        cmd.append("--dangerously-skip-permissions")
+    cmd += [
         "--model", model,
         _file_ref(turn_file),
     ]
@@ -2544,8 +2548,17 @@ def main():
         action="store_true",
         help="Analyze paper corpus to find underexplored gaps before generating ideas"
     )
+    parser.add_argument(
+        "--dangerously-skip-permissions",
+        action="store_true",
+        help="Skip all Claude permission prompts (use with caution)"
+    )
 
     args = parser.parse_args()
+
+    # Set global permission flag
+    global _SKIP_PERMISSIONS
+    _SKIP_PERMISSIONS = args.dangerously_skip_permissions
     
     # Handle resume mode
     if args.resume:
