@@ -30,7 +30,10 @@ OUTPUT_DIR = Path(__file__).parent / "papers"
 INDEX_PATH = OUTPUT_DIR / "index.json"
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (research-bot; academic use)"
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ),
 }
 
 

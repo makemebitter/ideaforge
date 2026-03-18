@@ -205,7 +205,6 @@ ideaforge/
 
 - Python 3.10+
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (for the adversarial refiner)
-- An [OpenReview](https://openreview.net/) account (for crawling papers)
 - Anthropic API access (Claude Code uses this under the hood)
 
 ### Quick Start (One Command)
@@ -216,18 +215,20 @@ cd ideaforge
 pip install -r requirements.txt
 pip install sentence-transformers faiss-cpu numpy
 
-# Quick test to verify the pipeline works end-to-end
+# Test mode: no crawling, synthetic data — verifies downstream pipeline works
 python setup_pipeline.py --test
 
-# Full setup: crawl papers, build training data, create FAISS index
-# (Set OpenReview credentials in config.py or OPENREVIEW_EMAIL env var first)
+# Normal mode: crawl ~100 representative papers, build everything
 python setup_pipeline.py
+
+# Full mode: crawl ALL ~50K papers (2-3 hours, use at your own risk)
+python setup_pipeline.py --full
 
 # Or just verify what's ready
 python setup_pipeline.py --check
 ```
 
-All pipeline outputs go to a `resources/` folder (configurable via `--resources-dir`) so the setup doesn't interfere with any existing local data. This crawls ~50K papers from ICLR/ICML/NeurIPS, builds the embedding index, and verifies the pre-trained judge. Takes ~2-3 hours. After it finishes, you can immediately run the idea refiner.
+All pipeline outputs go to a `resources/` folder (configurable via `--resources-dir`) so the setup doesn't interfere with any existing local data. The default mode crawls ~100 representative papers (balanced across accepted/rejected, multiple years) with conservative API rate limiting — enough to build a working FAISS index and verify the full pipeline. Use `--full` for the complete ~50K paper crawl.
 
 ### End-to-End Reproduction (Manual)
 
@@ -236,15 +237,7 @@ The full pipeline has 4 stages. You can skip stages 1-3 if you just want to use 
 **Stage 1: Crawl papers + reviews**
 
 ```bash
-# Create config.py with your OpenReview credentials
-echo 'EMAIL = "your@email.com"' > config.py
-echo 'PASSWORD = "your_openreview_password"' >> config.py
-
-# Or set via environment variables:
-# export OPENREVIEW_EMAIL="your@email.com"
-# export OPENREVIEW_PASSWORD="your_openreview_password"
-
-# Crawl ICLR papers
+# Crawl ICLR papers (uses OpenReview public API)
 python data_pipeline/openreview_crawler.py --year 2025
 
 # Crawl ICML and NeurIPS

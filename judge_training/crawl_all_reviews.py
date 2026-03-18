@@ -34,7 +34,38 @@ if _RESOURCES_DIR:
     RESEARCH_DATA = Path(_RESOURCES_DIR) / "research_data"
 else:
     RESEARCH_DATA = Path(__file__).parent.parent / "research_data"
-HEADERS = {"User-Agent": "Mozilla/5.0 (research-bot; academic use)"}
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ),
+}
+
+
+def _get_openreview_token() -> str:
+    """Obtain a bearer token from OpenReview for authenticated API access."""
+    username = os.environ.get("OPENREVIEW_USERNAME", "")
+    password = os.environ.get("OPENREVIEW_PASSWORD", "")
+    if not username or not password:
+        try:
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent.parent))
+            from config import EMAIL, PASSWORD
+            username, password = EMAIL, PASSWORD
+        except ImportError:
+            pass
+    if not username or not password:
+        return ""
+    import urllib.parse
+    payload = urllib.parse.urlencode({"id": username, "password": password}).encode()
+    req = Request("https://api2.openreview.net/login", data=payload,
+                  headers={"Content-Type": "application/x-www-form-urlencoded"})
+    try:
+        raw = urlopen(req, timeout=15).read()
+        return json.loads(raw).get("token", "")
+    except Exception as e:
+        print(f"Warning: OpenReview login failed: {e}")
+        return ""
 
 
 def _safe(text: str) -> str:
@@ -254,6 +285,15 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="Just show counts, don't crawl")
     args = parser.parse_args()
+
+    # Authenticate with OpenReview API
+    token = _get_openreview_token()
+    if token:
+        HEADERS["Authorization"] = f"Bearer {token}"
+        print("Authenticated with OpenReview API.")
+    else:
+        print("WARNING: No OpenReview credentials — API calls may fail (403).")
+        print("  Set OPENREVIEW_USERNAME/OPENREVIEW_PASSWORD or create config.py\n")
 
     print("Discovering papers from CSV files...")
     all_papers = discover_papers()

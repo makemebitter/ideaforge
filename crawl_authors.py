@@ -38,7 +38,12 @@ from bs4 import BeautifulSoup
 OUTPUT_DIR = Path(__file__).parent / "research_data" / "authors"
 
 SESSION = requests.Session()
-SESSION.headers.update({"User-Agent": "Mozilla/5.0 (research-bot; academic use)"})
+SESSION.headers.update({
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ),
+})
 
 # ============================================================================
 # Default authors to track

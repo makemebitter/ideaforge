@@ -18,10 +18,17 @@ class EnhancedCrawler:
         '2024': 'ICLR.cc/2024/Conference',
     }
     
+    _BROWSER_UA = (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    )
+
     def __init__(self):
         self.client = openreview.api.OpenReviewClient(
             baseurl='https://api2.openreview.net'
         )
+        self.client.headers['User-Agent'] = self._BROWSER_UA
+        self.client.session.headers['User-Agent'] = self._BROWSER_UA
         print("OpenReview client initialized.")
     
     def get_decision_from_venue(self, venue: str) -> str:

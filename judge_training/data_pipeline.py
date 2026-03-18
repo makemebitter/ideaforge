@@ -518,33 +518,42 @@ def run():
     bulk_count = 0
     for venue in ["iclr", "neurips", "icml"]:
         venue_reviews_dir = RESEARCH_DATA / venue / "reviews"
-        if not venue_reviews_dir.exists():
-            continue
-        for jf in venue_reviews_dir.rglob("*_reviews.json"):
-            record = parse_bulk_review_json(jf)
-            if record and record["title"].lower() not in seen_titles:
-                seen_titles.add(record["title"].lower())
-                forum_url = record.get("forum_url", "")
-                if "id=" in forum_url:
-                    fid = forum_url.split("id=")[-1].split("&")[0]
-                    seen_forum_ids.add(fid)
-                all_records.append(record)
-                bulk_count += 1
+        # Also check {venue}/{year}/reviews/ (setup_pipeline representative crawl)
+        venue_base = RESEARCH_DATA / venue
+        review_dirs = []
+        if venue_reviews_dir.exists():
+            review_dirs.append(venue_reviews_dir)
+        if venue_base.exists():
+            for year_dir in venue_base.iterdir():
+                if year_dir.is_dir() and (year_dir / "reviews").exists():
+                    review_dirs.append(year_dir / "reviews")
+        for rdir in review_dirs:
+            for jf in rdir.rglob("*.json"):
+                record = parse_bulk_review_json(jf)
+                if record and record["title"].lower() not in seen_titles:
+                    seen_titles.add(record["title"].lower())
+                    forum_url = record.get("forum_url", "")
+                    if "id=" in forum_url:
+                        fid = forum_url.split("id=")[-1].split("&")[0]
+                        seen_forum_ids.add(fid)
+                    all_records.append(record)
+                    bulk_count += 1
     print(f"  Parsed {bulk_count} bulk-crawled review JSONs")
 
     # === 2. Parse ICLR topic review JSONs ===
     print("[2/5] Parsing ICLR topic review JSONs...")
     iclr_dir = RESEARCH_DATA / "iclr"
     topic_count = 0
-    for topic_dir in sorted(iclr_dir.iterdir()):
-        if not topic_dir.is_dir() or topic_dir.name == "reviews":
-            continue
-        for jf in topic_dir.glob("*_reviews.json"):
-            record = parse_iclr_topic_json(jf, topic_dir.name)
-            if record and record["title"].lower() not in seen_titles:
-                seen_titles.add(record["title"].lower())
-                all_records.append(record)
-                topic_count += 1
+    if iclr_dir.exists():
+        for topic_dir in sorted(iclr_dir.iterdir()):
+            if not topic_dir.is_dir() or topic_dir.name == "reviews":
+                continue
+            for jf in topic_dir.glob("*_reviews.json"):
+                record = parse_iclr_topic_json(jf, topic_dir.name)
+                if record and record["title"].lower() not in seen_titles:
+                    seen_titles.add(record["title"].lower())
+                    all_records.append(record)
+                    topic_count += 1
     print(f"  Parsed {topic_count} ICLR topic review JSONs")
 
     # === 3. Parse author review JSONs ===
@@ -569,7 +578,7 @@ def run():
     # === 4. Parse ICLR CSVs (scores + metadata, no review text) ===
     print("[4/5] Parsing ICLR CSV review data...")
     iclr_csv_count = 0
-    for csv_file in sorted(iclr_dir.glob("iclr_*_with_reviews.csv")):
+    for csv_file in sorted(iclr_dir.glob("iclr_*_with_reviews.csv")) if iclr_dir.exists() else []:
         if "all" in csv_file.name:
             continue
         csv_records = parse_csv_with_reviews(csv_file)
@@ -599,7 +608,7 @@ def run():
     # === Enrich bulk review records with metadata from CSVs ===
     print("\n[ENRICH] Merging CSV metadata (abstracts, keywords) into bulk review records...")
     csv_by_title = {}
-    for csv_file in sorted(iclr_dir.glob("iclr_*_with_reviews.csv")):
+    for csv_file in sorted(iclr_dir.glob("iclr_*_with_reviews.csv")) if iclr_dir.exists() else []:
         if "all" in csv_file.name:
             continue
         for row in parse_csv_with_reviews(csv_file):

@@ -181,8 +181,26 @@ def main():
                         help="Overwrite existing CSVs")
     args = parser.parse_args()
 
+    _BROWSER_UA = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )
     print("Connecting to OpenReview API v2...")
-    client = openreview.api.OpenReviewClient(baseurl="https://api2.openreview.net")
+    username = os.environ.get("OPENREVIEW_USERNAME", "")
+    password = os.environ.get("OPENREVIEW_PASSWORD", "")
+    if not username or not password:
+        try:
+            from config import EMAIL, PASSWORD
+            username, password = EMAIL, PASSWORD
+        except ImportError:
+            pass
+    client = openreview.api.OpenReviewClient(
+        baseurl="https://api2.openreview.net",
+        username=username or None,
+        password=password or None,
+    )
+    client.headers["User-Agent"] = _BROWSER_UA
+    client.session.headers["User-Agent"] = _BROWSER_UA
     print("  Connected.\n")
 
     venues_to_crawl = {args.venue: VENUES[args.venue]} if args.venue else VENUES

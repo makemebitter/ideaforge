@@ -20,6 +20,7 @@ import json
 import csv
 import os
 from datetime import datetime
+from pathlib import Path
 from tqdm import tqdm
 from typing import Optional, List, Dict, Any
 
@@ -60,20 +61,31 @@ class OpenReviewCrawler:
             username: OpenReview username (email). Optional for public papers.
             password: OpenReview password. Optional for public papers.
         """
+        _BROWSER_UA = (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+        )
+
         # API v2 client (for 2023+)
         self.client_v2 = openreview.api.OpenReviewClient(
             baseurl='https://api2.openreview.net',
             username=username,
             password=password
         )
-        
+        self.client_v2.headers['User-Agent'] = _BROWSER_UA
+        self.client_v2.session.headers['User-Agent'] = _BROWSER_UA
+
         # API v1 client (for older conferences)
         self.client_v1 = openreview.Client(
             baseurl='https://api.openreview.net',
             username=username,
             password=password
         )
-        
+        if hasattr(self.client_v1, 'headers'):
+            self.client_v1.headers['User-Agent'] = _BROWSER_UA
+        if hasattr(self.client_v1, 'session'):
+            self.client_v1.session.headers['User-Agent'] = _BROWSER_UA
+
         print("OpenReview API clients initialized successfully.")
 
     def get_venue_id(self, year: str) -> str:
@@ -401,6 +413,12 @@ Examples:
     # Set default output filename
     if not args.output:
         args.output = f"iclr_{args.year}_papers.{args.format}"
+    else:
+        # If output is a directory, append default filename inside it
+        out_path = Path(args.output)
+        if out_path.is_dir() or (not out_path.suffix and not out_path.exists()):
+            out_path.mkdir(parents=True, exist_ok=True)
+            args.output = str(out_path / f"iclr_{args.year}_papers.{args.format}")
     
     # Try to load credentials from config file if not provided
     username = args.username

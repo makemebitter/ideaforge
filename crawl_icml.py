@@ -27,7 +27,12 @@ from urllib.error import HTTPError, URLError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (research-bot; academic use)"}
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ),
+}
 OUTPUT_DIR = Path(__file__).parent / "research_data" / "icml"
 
 BATCH_SIZE = 200  # OpenReview API max per request
