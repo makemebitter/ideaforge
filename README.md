@@ -49,9 +49,6 @@ python crawl_icml.py
 
 # Crawl NeurIPS papers
 python crawl_neurips.py
-
-# Download review PDFs for judge training data
-python download_review_pdfs.py
 ```
 
 ### 2. Judge Training (GEPA-Optimized)
@@ -150,9 +147,6 @@ ideaforge/
 │
 ├── crawl_icml.py                    # ICML paper crawler
 ├── crawl_neurips.py                 # NeurIPS paper crawler
-├── crawl_papers.py                  # General paper utilities
-├── crawl_authors.py                 # Author metadata crawler
-├── download_review_pdfs.py          # Review PDF downloader
 ├── data_pipeline/                   # OpenReview crawling pipeline
 │   ├── openreview_crawler.py
 │   ├── crawl_with_reviews.py

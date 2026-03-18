@@ -30,6 +30,7 @@ Thumbs.db
 *.pdf
 research_data/
 resources/
+resources_*/
 papers/
 neurips_papers/
 icml_papers/
@@ -64,6 +65,11 @@ test_sample.csv
 # Early scratch files
 research_ideas.md
 research_ideas_critique.md
+
+# Internal utility scripts (not part of public pipeline)
+crawl_authors.py
+crawl_papers.py
+download_review_pdfs.py
 
 # Claude internal
 .claude/
