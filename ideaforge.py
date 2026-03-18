@@ -589,8 +589,10 @@ def verify_setup(paths: dict) -> dict:
     if checks["skills"]:
         found_at = index_path if index_path.exists() else default_index
         with open(found_at, encoding="utf-8") as f:
-            n_skills = len(json.load(f))
-        print(f"  Skill library:     OK ({n_skills} skills)")
+            index_data = json.load(f)
+        n_skills = sum(len(v) for k, v in index_data.items()
+                       if k in ("topics", "dimensions", "calibration") and isinstance(v, dict))
+        print(f"  Skill library:     OK ({n_skills} skill files)")
     else:
         print(f"  Skill library:     MISSING")
 
@@ -614,16 +616,21 @@ def verify_setup(paths: dict) -> dict:
     print(f"\n  Resources dir:     {paths['resources_dir']}")
 
     # Summary
-    ready = checks["judge_prompt"] and checks["skills"] and checks["claude_cli"]
-    full_ready = ready and checks["faiss"] and checks["training_data"]
+    # Core = what the refiner needs: judge + skills + FAISS + Claude CLI
+    refiner_ready = (checks["judge_prompt"] and checks["skills"]
+                     and checks["faiss"] and checks["claude_cli"])
+    # Full = core + training data (needed only to retrain the judge)
+    full_ready = refiner_ready and checks["training_data"]
 
     print()
-    if full_ready:
-        print("  ALL CHECKS PASSED — ready to run the adversarial idea refiner!")
+    if refiner_ready:
+        print("  READY — can run the adversarial idea refiner!")
+        if not checks["training_data"]:
+            print("  (Training data missing — run `python ideaforge.py` if you want to retrain the judge)")
         print()
         print("  Example:")
         print('    python ideaforge.py --run --domain "your research area"')
-    elif ready:
+    elif checks["judge_prompt"] and checks["skills"] and checks["claude_cli"]:
         print("  BASIC CHECKS PASSED — can run the refiner without FAISS retrieval.")
         print("  For full judge accuracy, build the FAISS index by running:")
         print("    python ideaforge.py")
@@ -737,7 +744,8 @@ Modes:
         # Quick verification
         print_header("IdeaForge — Launching Adversarial Idea Refiner")
         checks = verify_setup(paths)
-        ready = checks["judge_prompt"] and checks["skills"] and checks["claude_cli"]
+        ready = (checks["judge_prompt"] and checks["skills"]
+                 and checks["faiss"] and checks["claude_cli"])
         if not ready:
             print("\n  Setup incomplete — fix missing items above before running.")
             sys.exit(1)
