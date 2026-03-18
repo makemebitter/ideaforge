@@ -932,7 +932,7 @@ def get_frontier_context(domain: str, exp_dir: Optional[Path] = None,
     but high potential, giving the idea generator better starting points.
     """
     _res = os.environ.get("IDEAFORGE_RESOURCES_DIR")
-    base = Path(_res) / "research_data" if _res else Path(__file__).parent.parent / "research_data"
+    base = Path(_res) / "research_data" if _res else Path(__file__).parent.parent / "resources" / "research_data"
 
     # Gather paper titles and topics from the corpus for the prompt
     paper_samples = []
@@ -996,21 +996,14 @@ Output plain text, no JSON.
 # ---------------------------------------------------------------------------
 
 _RESOURCES_BLOCK = """=== YOUR RESOURCES ===
-**PRIMARY — Use these EXTENSIVELY every round:**
+**Use web search EXTENSIVELY every round:**
 1. **Web search (MANDATORY)**: Search arxiv, Google Scholar, Semantic Scholar, OpenReview
    for EVERY prior work claim. Use multiple search queries with different phrasings.
-   Do NOT rely only on local files. The internet has the most up-to-date papers.
 2. **Read paper PDFs and abstracts** from URLs you find via web search.
 
-**SUPPLEMENTARY — Local paper databases (may be incomplete/outdated):**
-3. **ICLR papers**: `research_data/iclr/iclr_*_with_reviews.csv` — papers with reviews
-   - Category PDFs + reviews: `research_data/iclr/<category>/*.pdf` and `*_reviews.json`
-4. **NeurIPS papers**: `research_data/neurips/neurips_*_papers.csv` + `<year>/*_reviews.json`
-5. **ICML papers**: `research_data/icml/icml_*_papers.csv` + `<year>/*_reviews.json`
-
-IMPORTANT: Local databases may NOT contain the latest papers. Always cross-check
-with web search. If an idea pivots or changes direction, you MUST search the web
-for prior work on the NEW direction — do not assume prior searches still apply.
+IMPORTANT: Always verify novelty claims with web search. If an idea pivots or
+changes direction, you MUST search the web for prior work on the NEW direction —
+do not assume prior searches still apply.
 """
 
 _BUDGET_BLOCK = """=== BUDGET CONSTRAINT ===
@@ -2159,8 +2152,12 @@ def resume_refinement(checkpoint_path: str, verbose: bool = True) -> str:
 
 def create_experiment_dir(idea_title: str = None, idea_num: int = None) -> Path:
     """Create a new experiment directory with unique ID."""
-    # Base directory for all refinements
-    base_dir = Path(__file__).parent / "refinements"
+    # Base directory for all refinements — use resources/ at repo root
+    _res = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+    if _res:
+        base_dir = Path(_res) / "refinements"
+    else:
+        base_dir = Path(__file__).parent.parent / "resources" / "refinements"
     base_dir.mkdir(exist_ok=True)
     
     # Generate experiment ID: timestamp + optional idea info
@@ -2407,9 +2404,12 @@ def menu_mode():
     rounds_input = input("\nNumber of debate rounds [2]: ").strip()
     rounds = int(rounds_input) if rounds_input.isdigit() else 2
     
-    # Generate output filename
+    # Generate output filename — put transcripts in resources/
+    _res = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+    transcript_dir = Path(_res) / "transcripts" if _res else Path(__file__).parent.parent / "resources" / "transcripts"
+    transcript_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"refinement_{timestamp}.md"
+    output_file = str(transcript_dir / f"refinement_{timestamp}.md")
     
     # Run refinement
     result = adversarial_refinement(
@@ -2677,11 +2677,14 @@ def main():
         menu_mode()
         return
     
-    # Generate output filename if not provided
+    # Generate output filename if not provided — put transcripts in resources/
     output_file = args.output
     if not output_file:
+        _res = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+        transcript_dir = Path(_res) / "transcripts" if _res else Path(__file__).parent.parent / "resources" / "transcripts"
+        transcript_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = f"refinement_{timestamp}.md"
+        output_file = str(transcript_dir / f"refinement_{timestamp}.md")
     
     # Run refinement
     result = adversarial_refinement(

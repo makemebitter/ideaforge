@@ -46,10 +46,10 @@ if _RESOURCES_DIR:
     RESEARCH_DATA = Path(_RESOURCES_DIR) / "research_data"
     LOG_DIR = Path(_RESOURCES_DIR) / "output" / "logs"
 else:
-    DATA_DIR = BASE_DIR / "data"
-    SKILLS_DIR = BASE_DIR / "skills"
-    RESEARCH_DATA = BASE_DIR.parent / "research_data"
-    LOG_DIR = BASE_DIR / "output" / "logs"
+    DATA_DIR = BASE_DIR.parent / "resources" / "data"
+    SKILLS_DIR = BASE_DIR.parent / "resources" / "skills"
+    RESEARCH_DATA = BASE_DIR.parent / "resources" / "research_data"
+    LOG_DIR = BASE_DIR.parent / "resources" / "output" / "logs"
 
 logger = logging.getLogger("generate_skills")
 

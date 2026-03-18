@@ -17,6 +17,7 @@ Output:
 """
 
 import csv
+import os
 import re
 import json
 import time
@@ -33,7 +34,11 @@ HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     ),
 }
-OUTPUT_DIR = Path(__file__).parent / "neurips_papers"
+_RESOURCES_DIR = os.environ.get("IDEAFORGE_RESOURCES_DIR")
+if _RESOURCES_DIR:
+    OUTPUT_DIR = Path(_RESOURCES_DIR) / "research_data" / "neurips"
+else:
+    OUTPUT_DIR = Path(__file__).parent / "resources" / "research_data" / "neurips"
 
 BATCH_SIZE = 200  # OpenReview API max per request
 

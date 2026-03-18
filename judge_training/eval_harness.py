@@ -36,9 +36,9 @@ if _RESOURCES_DIR:
     SKILLS_DIR = Path(_RESOURCES_DIR) / "skills"
     LOG_DIR = Path(_RESOURCES_DIR) / "output" / "logs"
 else:
-    DATA_DIR = BASE_DIR / "data"
-    SKILLS_DIR = BASE_DIR / "skills"
-    LOG_DIR = BASE_DIR / "output" / "logs"
+    DATA_DIR = BASE_DIR.parent / "resources" / "data"
+    SKILLS_DIR = BASE_DIR.parent / "resources" / "skills"
+    LOG_DIR = BASE_DIR.parent / "resources" / "output" / "logs"
 
 logger = logging.getLogger("eval_harness")
 

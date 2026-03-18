@@ -36,8 +36,8 @@ if _RESOURCES_DIR:
     OUTPUT_DIR = Path(_RESOURCES_DIR) / "output"
     LOG_DIR = Path(_RESOURCES_DIR) / "output" / "logs"
 else:
-    DATA_DIR = BASE_DIR / "data"
-    OUTPUT_DIR = BASE_DIR / "output"
+    DATA_DIR = BASE_DIR.parent / "resources" / "data"
+    OUTPUT_DIR = BASE_DIR.parent / "resources" / "output"
     LOG_DIR = OUTPUT_DIR / "logs"
 
 # ---------------------------------------------------------------------------

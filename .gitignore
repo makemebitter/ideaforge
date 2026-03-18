@@ -25,17 +25,16 @@ Thumbs.db
 # Logs
 *.log
 
-# Large / generated data
-*.pkl
-*.pdf
+# ===== All generated data: single folder =====
+# Everything produced by crawlers, training, and refinement goes here.
+# Use --resources-dir or IDEAFORGE_RESOURCES_DIR to customize the name.
+resources*/
+
+# Legacy locations (pre-reorganization data may still exist here)
 research_data/
-resources/
-resources_*/
 papers/
 neurips_papers/
 icml_papers/
-
-# Judge training data (too large for public repo)
 judge_training/data/
 judge_training/embeddings/
 judge_training/output/_eval_runs/
@@ -44,27 +43,10 @@ judge_training/output/_gepa_reflection/
 judge_training/output/gepa_stage1/
 judge_training/output/gepa_stage2/
 judge_training/output/logs/
-
-# Experiment session data (large, per-run)
 idea_refiner/refinements/
-idea_refiner/.pytest_cache/
-idea_refiner/test_*.py
-
-# Full debate transcripts (very large, 100KB-700KB each)
 refinement_*.md
 idea_refiner/refinement_*.md
-
-# Test/scratch data
 test_sample.csv
-*.csv
-*.json
-!judge_training/output/training_log.json
-!judge_training/skills/index.json
-!examples/*.json
-
-# Early scratch files
-research_ideas.md
-research_ideas_critique.md
 
 # Internal utility scripts (not part of public pipeline)
 crawl_authors.py
@@ -74,3 +56,5 @@ download_review_pdfs.py
 # Claude internal
 .claude/
 .pytest_cache/
+idea_refiner/.pytest_cache/
+idea_refiner/test_*.py

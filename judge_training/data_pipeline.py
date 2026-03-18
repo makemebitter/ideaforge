@@ -25,8 +25,8 @@ if _RESOURCES_DIR:
     RESEARCH_DATA = Path(_RESOURCES_DIR) / "research_data"
     OUTPUT_DIR = Path(_RESOURCES_DIR) / "data"
 else:
-    RESEARCH_DATA = Path(__file__).parent.parent / "research_data"
-    OUTPUT_DIR = Path(__file__).parent / "data"
+    RESEARCH_DATA = Path(__file__).parent.parent / "resources" / "research_data"
+    OUTPUT_DIR = Path(__file__).parent.parent / "resources" / "data"
 
 
 def parse_iclr_topic_json(filepath: Path, topic: str) -> Optional[dict]:

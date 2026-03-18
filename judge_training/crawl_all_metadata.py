@@ -23,7 +23,7 @@ _RESOURCES_DIR = os.environ.get("IDEAFORGE_RESOURCES_DIR")
 if _RESOURCES_DIR:
     RESEARCH_DATA = Path(_RESOURCES_DIR) / "research_data"
 else:
-    RESEARCH_DATA = Path(__file__).parent.parent / "research_data"
+    RESEARCH_DATA = Path(__file__).parent.parent / "resources" / "research_data"
 
 VENUES = {
     "neurips": {

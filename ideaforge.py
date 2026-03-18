@@ -10,10 +10,10 @@ All outputs go to a `resources/` folder (configurable via --resources-dir) so
 the setup does not interfere with existing local data.
 
 Three modes:
-    python setup_pipeline.py --test        # No crawl — synthetic data, tests downstream pipeline
-    python setup_pipeline.py               # Normal — ~100 representative papers, safe QPS
-    python setup_pipeline.py --full        # Full crawl — all papers, use at your own risk
-    python setup_pipeline.py --check       # Just verify everything is ready
+    python ideaforge.py --test        # No crawl — synthetic data, tests downstream pipeline
+    python ideaforge.py               # Normal — ~100 representative papers, safe QPS
+    python ideaforge.py --full        # Full crawl — all papers, use at your own risk
+    python ideaforge.py --check       # Just verify everything is ready
 
 Prerequisites:
     - Python 3.10+
@@ -374,8 +374,8 @@ def build_training_data(paths: dict):
     train_path = paths["data"] / "train.jsonl"
     test_path = paths["data"] / "test.jsonl"
     if train_path.exists() and test_path.exists():
-        train_count = sum(1 for _ in open(train_path))
-        test_count = sum(1 for _ in open(test_path))
+        train_count = sum(1 for _ in open(train_path, encoding="utf-8"))
+        test_count = sum(1 for _ in open(test_path, encoding="utf-8"))
         print(f"Created train.jsonl ({train_count} reviews) and test.jsonl ({test_count} reviews)")
     else:
         print("Warning: Training data files not found after pipeline run")
@@ -409,7 +409,7 @@ def generate_skills(paths: dict):
     """Stage 3b: Generate skill files if not already present."""
     index_path = paths["skills"] / "index.json"
     if index_path.exists():
-        with open(index_path) as f:
+        with open(index_path, encoding="utf-8") as f:
             skills = json.load(f)
         print(f"Skill library already exists ({len(skills)} skills)")
         return
@@ -423,7 +423,7 @@ def generate_skills(paths: dict):
         skills_dst = paths["skills"]
         if skills_src != skills_dst:
             shutil.copytree(str(skills_src), str(skills_dst), dirs_exist_ok=True)
-        with open(index_path) as f:
+        with open(index_path, encoding="utf-8") as f:
             skills = json.load(f)
         print(f"Copied skill library ({len(skills)} skills)")
         return
@@ -550,7 +550,7 @@ def verify_setup(paths: dict) -> dict:
     checks["skills"] = index_path.exists() or default_index.exists()
     if checks["skills"]:
         found_at = index_path if index_path.exists() else default_index
-        with open(found_at) as f:
+        with open(found_at, encoding="utf-8") as f:
             n_skills = len(json.load(f))
         print(f"  Skill library:     OK ({n_skills} skills)")
     else:
