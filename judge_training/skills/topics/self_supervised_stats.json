@@ -1,0 +1,264 @@
+{
+  "topic": "self_supervised",
+  "num_papers": 1909,
+  "num_accepted": 1503,
+  "acceptance_rate": 0.787,
+  "rating_mean": 4.92,
+  "rating_median": 5.0,
+  "rating_std": 1.23,
+  "rating_min": 0.0,
+  "rating_max": 8.0,
+  "avg_soundness": 2.59,
+  "avg_contribution": 2.4,
+  "avg_presentation": 2.63,
+  "top_strength_phrases": [
+    [
+      "novel",
+      1340
+    ],
+    [
+      "ablation",
+      1033
+    ],
+    [
+      "baseline",
+      936
+    ],
+    [
+      "well-written",
+      687
+    ],
+    [
+      "well written",
+      414
+    ],
+    [
+      "state-of-the-art",
+      318
+    ],
+    [
+      "reproducib",
+      232
+    ],
+    [
+      "scalab",
+      197
+    ],
+    [
+      "novelty",
+      146
+    ],
+    [
+      "strong empirical",
+      104
+    ],
+    [
+      "comprehensive and",
+      85
+    ],
+    [
+      "strong performance",
+      83
+    ],
+    [
+      "comprehensive experiments",
+      81
+    ],
+    [
+      "comprehensive evaluation",
+      74
+    ],
+    [
+      "thorough and",
+      69
+    ],
+    [
+      "strong baselines",
+      64
+    ],
+    [
+      "significant improvements",
+      56
+    ],
+    [
+      "strong results",
+      46
+    ],
+    [
+      "solid and",
+      42
+    ],
+    [
+      "significant and",
+      39
+    ],
+    [
+      "comprehensive experimental",
+      38
+    ],
+    [
+      "lack of",
+      38
+    ],
+    [
+      "incremental",
+      37
+    ],
+    [
+      "significant contribution",
+      37
+    ],
+    [
+      "state of the art",
+      37
+    ],
+    [
+      "thorough ablation",
+      36
+    ],
+    [
+      "solid theoretical",
+      35
+    ],
+    [
+      "significant performance",
+      34
+    ],
+    [
+      "significant improvement",
+      34
+    ],
+    [
+      "comprehensive ablation",
+      34
+    ]
+  ],
+  "top_weakness_phrases": [
+    [
+      "baseline",
+      3026
+    ],
+    [
+      "ablation",
+      1464
+    ],
+    [
+      "novelty",
+      1307
+    ],
+    [
+      "lack of",
+      898
+    ],
+    [
+      "novel",
+      629
+    ],
+    [
+      "scalab",
+      493
+    ],
+    [
+      "state-of-the-art",
+      342
+    ],
+    [
+      "unclear how",
+      313
+    ],
+    [
+      "incremental",
+      313
+    ],
+    [
+      "limited to",
+      311
+    ],
+    [
+      "reproducib",
+      278
+    ],
+    [
+      "unclear whether",
+      274
+    ],
+    [
+      "lacks a",
+      232
+    ],
+    [
+      "fair comparison",
+      195
+    ],
+    [
+      "unclear why",
+      134
+    ],
+    [
+      "limited novelty",
+      127
+    ],
+    [
+      "unclear if",
+      107
+    ],
+    [
+      "unclear what",
+      94
+    ],
+    [
+      "unclear to",
+      84
+    ],
+    [
+      "insufficient to",
+      71
+    ],
+    [
+      "missing from",
+      64
+    ],
+    [
+      "missing in",
+      61
+    ],
+    [
+      "limited in",
+      61
+    ],
+    [
+      "lacks an",
+      53
+    ],
+    [
+      "comprehensive evaluation",
+      52
+    ],
+    [
+      "lacks sufficient",
+      51
+    ],
+    [
+      "lacks clarity",
+      46
+    ],
+    [
+      "lacks novelty",
+      43
+    ],
+    [
+      "lacks the",
+      43
+    ],
+    [
+      "significant performance",
+      42
+    ]
+  ],
+  "tier_example_count": {
+    "borderline (4-5)": 3776,
+    "good (6-7)": 1918,
+    "low (1-3)": 1325,
+    "excellent (8-10)": 30
+  }
+}
