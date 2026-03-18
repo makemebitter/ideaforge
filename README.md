@@ -243,38 +243,51 @@ ideaforge/
 - `resources/refinements/` — Full experiment data (hundreds of round snapshots)
 - `resources/transcripts/` — Full debate transcripts (100KB-700KB each)
 
-## Setup & Reproduction
+## Try It Now
 
-### Prerequisites
-
-- Python 3.10+
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (for the adversarial refiner)
-- Anthropic API access (Claude Code uses this under the hood)
-
-### Quick Start (One Command)
+The repo ships with a pre-trained judge, 26 skill files, and a 50K-paper FAISS index — **everything you need to generate ideas immediately**, no crawling or training required.
 
 ```bash
 git clone https://github.com/makemebitter/ideaforge.git
 cd ideaforge
 pip install -r requirements.txt
+
+# Generate a research idea right away
+python idea_refiner/adversarial_refiner.py \
+  --from-scratch \
+  --domain "your research area here" \
+  --target-venues "ICML,NeurIPS,ICLR" \
+  --rounds 10 \
+  --use-trained-judge \
+  --min-critics 2
+```
+
+That's it — the Critic, Proposer, and Judge agents will start debating immediately using the shipped FAISS index and GEPA-trained judge.
+
+> **Prerequisites:** Python 3.10+, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code), and Anthropic API access.
+> The FAISS index ships via [Git LFS](https://git-lfs.com/) (~140MB). If you cloned without LFS, run `git lfs pull` first.
+
+## Setup & Crawling (Optional)
+
+You can optionally crawl your own papers to expand the index or retrain the judge:
+
+```bash
 pip install sentence-transformers faiss-cpu numpy
 
-# Test mode: no crawling, synthetic data — verifies downstream pipeline works
-python ideaforge.py --test
-
-# Normal mode: crawl ~1,000 representative papers, use shipped 50K FAISS index
+# Normal mode: crawl ~1,000 representative papers (~15-20 min)
 python ideaforge.py
 
 # Full mode: crawl ALL ~50K papers (2-3 hours, use at your own risk)
 python ideaforge.py --full
 
-# Or just verify what's ready
+# Test mode: synthetic data, verifies downstream pipeline works
+python ideaforge.py --test
+
+# Just check what's ready
 python ideaforge.py --check
 ```
 
-All pipeline outputs go to a `resources/` folder (configurable via `--resources-dir`) so the setup doesn't interfere with any existing local data. A **pre-built FAISS index** covering 50K papers ships with the repo via Git LFS, so the adversarial refiner works immediately. The default mode crawls ~1,000 representative papers (~15-20 min) with conservative API rate limiting. Use `--full` for the complete ~50K paper crawl.
-
-> **Note:** The FAISS index is stored via [Git LFS](https://git-lfs.com/). If you clone without LFS, run `git lfs pull` to download the index files (~140MB).
+All pipeline outputs go to a `resources/` folder (configurable via `--resources-dir`) so the setup doesn't interfere with any existing local data.
 
 ### End-to-End Reproduction (Manual)
 
