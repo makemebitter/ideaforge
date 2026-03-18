@@ -58,11 +58,13 @@ Trains a calibrated paper reviewer using **Guided Evolution with Prompt Ancestry
 **Training pipeline:**
 
 ```
-data_pipeline.py     →  Parse 50K reviews into train/test
-generate_skills.py   →  Generate 28 domain-specific skill files
-embedding_index.py   →  Build FAISS index for similar-paper retrieval
-eval_harness.py      →  Evaluate judge predictions vs real scores
-optimize.py          →  GEPA optimize judge prompt (Stage 1: Sonnet, Stage 2: Opus)
+crawl_all_metadata.py  →  Crawl NeurIPS/ICML paper metadata from OpenReview
+crawl_all_reviews.py   →  Bulk-crawl full review text for all papers
+data_pipeline.py       →  Parse 50K reviews into train/test
+generate_skills.py     →  Generate 26 domain-specific skill files (two-step: stats + LLM synthesis)
+embedding_index.py     →  Build FAISS index for similar-paper retrieval
+eval_harness.py        →  Evaluate judge predictions vs real scores
+optimize.py            →  GEPA optimize judge prompt (Stage 1: Sonnet, Stage 2: Opus)
 ```
 
 **Results:**
@@ -73,8 +75,14 @@ optimize.py          →  GEPA optimize judge prompt (Stage 1: Sonnet, Stage 2: 
 
 **3-layer knowledge architecture:**
 1. **Core prompt** (GEPA-optimized, ~4K tokens) — learned evaluation heuristics
-2. **Skill library** (28 files, dynamically loaded) — topic/dimension/calibration knowledge
+2. **Skill library** (26 files, dynamically loaded) — topic/dimension/calibration knowledge
 3. **Retrieved context** (FAISS search) — 5-10 most similar published papers with their actual scores
+
+**Skill library breakdown** (all included in repo at [`judge_training/skills/`](judge_training/skills/)):
+- **16 topic skills** — domain-specific evaluation criteria (video generation, language models, diffusion, etc.)
+- **6 dimension skills** — per-axis rubrics (novelty, soundness, experiments, clarity, significance, reproducibility)
+- **4 calibration skills** — what papers at each score tier look like (2-3, 4-5, 6-7, 8-10)
+- Each skill includes raw statistics (`*_stats.json`) extracted from the review corpus, the Claude synthesis trace (`_gen_*/`), and the final skill file
 
 ### 3. Adversarial Idea Refiner
 
@@ -141,6 +149,7 @@ See [`optimization_summary.md`](optimization_summary.md) for detailed analysis o
 ```
 ideaforge/
 ├── README.md
+├── LICENSE
 ├── requirements.txt
 ├── ideaforge.py                     # One-command setup (crawl + build + verify)
 ├── optimization_summary.md          # Detailed analysis of all runs
@@ -148,26 +157,33 @@ ideaforge/
 ├── crawl_icml.py                    # ICML paper crawler
 ├── crawl_neurips.py                 # NeurIPS paper crawler
 ├── data_pipeline/                   # OpenReview crawling pipeline
-│   ├── openreview_crawler.py
-│   ├── crawl_with_reviews.py
-│   └── filter_*.py
+│   ├── openreview_crawler.py        # ICLR paper + review crawler
+│   ├── crawl_with_reviews.py        # Crawl reviews for existing paper CSVs
+│   ├── filter_video_papers.py       # Filter papers by video-related keywords
+│   └── test_crawler.py              # Crawler integration test
 │
 ├── judge_training/                  # GEPA judge training
 │   ├── PLAN.md                      # Training plan & architecture
-│   ├── data_pipeline.py             # Review data processing
-│   ├── generate_skills.py           # Skill library generation
+│   ├── data_pipeline.py             # Review data processing (→ train/test JSONL)
+│   ├── generate_skills.py           # Skill library generation (stats → LLM synthesis)
 │   ├── embedding_index.py           # FAISS index builder
 │   ├── eval_harness.py              # Evaluation against real reviews
 │   ├── optimize.py                  # GEPA prompt optimization
 │   ├── claude_utils.py              # Claude API utilities
+│   ├── crawl_all_metadata.py        # Bulk NeurIPS/ICML metadata crawler
+│   ├── crawl_all_reviews.py         # Bulk review text crawler
 │   ├── output/
-│   │   ├── best_judge_prompt.md     # Final GEPA-optimized prompt
+│   │   ├── best_judge_prompt.md     # Final GEPA-optimized prompt (4K tokens)
 │   │   ├── stage1_best_prompt.md    # Stage 1 (Sonnet) best
 │   │   └── training_log.json        # Training run metadata
-│   └── skills/                      # 28 domain-specific skill files
-│       ├── topics/
-│       ├── dimensions/
-│       └── calibration/
+│   └── skills/                      # 26 skill files + stats + generation traces
+│       ├── index.json               # Keyword → skill file mapping
+│       ├── topics/                  # 16 topic skills (video_generation, etc.)
+│       │   ├── *.md                 # Final skill files
+│       │   ├── *_stats.json         # Raw statistical extracts from corpus
+│       │   └── _gen_*/              # Claude synthesis traces
+│       ├── dimensions/              # 6 dimension skills (novelty, soundness, etc.)
+│       └── calibration/             # 4 score-tier calibration skills
 │
 ├── idea_refiner/                    # 3-agent adversarial debate
 │   ├── adversarial_refiner.py       # Main refiner (Critic-Proposer-Judge)
@@ -251,7 +267,7 @@ cd judge_training
 # Parse crawled reviews into train/test JSONL
 python data_pipeline.py
 
-# Generate the 28 skill files
+# Generate the 26 skill files
 python generate_skills.py
 
 # Build FAISS embedding index for similar-paper retrieval
@@ -325,7 +341,7 @@ Standard prompt engineering can't calibrate a reviewer against 50K real reviews.
 
 1. **Stage 1 (Sonnet, 500 evals)**: Evolves the judge prompt through mutations and crossovers, selecting for accuracy against real reviewer scores. Each eval scores 10 papers and compares to ground truth.
 2. **Stage 2 (Opus, 150 evals)**: Takes the Stage 1 winner and refines it with a more capable model, focusing on edge cases and calibration.
-3. **Skill Library**: 28 auto-generated files covering topic-specific evaluation criteria, score calibration data, and dimension-specific rubrics.
+3. **Skill Library**: 26 auto-generated files covering topic-specific evaluation criteria, score calibration data, and dimension-specific rubrics. Each skill is built in two steps: (1) statistical extraction from the review corpus (Python, no LLM) producing `*_stats.json` files, then (2) agentic synthesis (Claude Code session) that reads the stats and produces structured Markdown with real reviewer patterns, required baselines, and score-level calibration data.
 4. **Retrieval**: At eval time, FAISS retrieves the 5-10 most similar published papers with their actual scores, grounding predictions in real data.
 
 ## Limitations
