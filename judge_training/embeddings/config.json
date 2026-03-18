@@ -1,0 +1,6 @@
+{
+  "model_name": "all-MiniLM-L6-v2",
+  "embedding_dim": 384,
+  "num_papers": 50185,
+  "index_type": "IndexFlatIP"
+}

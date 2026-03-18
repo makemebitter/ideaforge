@@ -11,7 +11,7 @@ the setup does not interfere with existing local data.
 
 Three modes:
     python ideaforge.py --test        # No crawl — synthetic data, tests downstream pipeline
-    python ideaforge.py               # Normal — ~100 representative papers, safe QPS
+    python ideaforge.py               # Normal — ~1,000 representative papers, safe QPS
     python ideaforge.py --full        # Full crawl — all papers, use at your own risk
     python ideaforge.py --check       # Just verify everything is ready
 
@@ -133,11 +133,12 @@ def run_script(script_path: str, args: list[str] = None, cwd: str = None,
 
 
 def crawl_representative_papers(paths: dict, username: str = "",
-                                password: str = "", n_papers: int = 100):
+                                password: str = "", n_papers: int = 1000):
     """Crawl a representative sample of ~n_papers across venues and years.
 
     Samples across ICLR (2024, 2025), balancing accepted/rejected and score
     ranges to get a training-useful distribution. Uses conservative QPS.
+    Default is 1,000 papers (~15-20 min with conservative QPS).
     """
     print_header("Stage 1: Crawling Representative Papers (Normal Mode)")
     print(f"  Target: ~{n_papers} papers across venues and score ranges")
@@ -381,6 +382,42 @@ def build_training_data(paths: dict):
         print("Warning: Training data files not found after pipeline run")
 
 
+SHIPPED_EMBEDDINGS_DIR = JUDGE_DIR / "embeddings"
+
+
+def use_shipped_index(paths: dict) -> bool:
+    """Copy the pre-built FAISS index shipped with the repo if available.
+
+    Returns True if the shipped index was found and copied.
+    """
+    shipped_faiss = SHIPPED_EMBEDDINGS_DIR / "paper_embeddings.faiss"
+    shipped_meta = SHIPPED_EMBEDDINGS_DIR / "embedding_metadata.jsonl"
+    shipped_config = SHIPPED_EMBEDDINGS_DIR / "config.json"
+
+    if not shipped_faiss.exists() or shipped_faiss.stat().st_size < 1000:
+        # LFS pointer file is ~130 bytes; actual index is ~74MB
+        return False
+
+    target_dir = paths["embeddings"]
+    target_faiss = target_dir / "paper_embeddings.faiss"
+
+    # Don't overwrite a user-built index
+    if target_faiss.exists() and target_faiss.stat().st_size > 1000:
+        return False
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    print("  Using pre-built FAISS index (50K papers, shipped with repo via Git LFS)...")
+
+    import shutil as _shutil
+    for src in [shipped_faiss, shipped_meta, shipped_config]:
+        if src.exists():
+            _shutil.copy2(src, target_dir / src.name)
+
+    size_mb = target_faiss.stat().st_size / (1024 * 1024)
+    print(f"  Copied to {target_dir} ({size_mb:.0f} MB)")
+    return True
+
+
 def build_embeddings(paths: dict):
     """Stage 3: Build FAISS embedding index."""
     print_header("Stage 3: Building FAISS Embedding Index")
@@ -610,9 +647,9 @@ Modes:
   --test   No crawling. Uses synthetic data to verify the downstream pipeline
            (data parsing, embeddings, skills, judge prompt) works end-to-end.
 
-  (default) Crawls ~100 representative papers from ICLR (balanced across
-           accepted/rejected, multiple years) with conservative QPS.
-           Enough to build a working FAISS index and verify the full pipeline.
+  (default) Crawls ~1,000 representative papers from ICLR (balanced across
+           accepted/rejected, multiple years) with conservative QPS (~15-20 min).
+           A pre-built 50K FAISS index ships with the repo for immediate use.
 
   --full   Crawls ALL papers from ICLR/ICML/NeurIPS (~50K+). Takes 2-3 hours.
            Use at your own risk — high API volume.
@@ -669,7 +706,7 @@ Modes:
 
     mode_labels = {
         "test": "TEST MODE — synthetic data, no crawling",
-        "normal": "NORMAL MODE — ~100 representative papers",
+        "normal": "NORMAL MODE — ~1,000 representative papers",
         "full": "FULL MODE — all papers (use at your own risk)",
     }
 
@@ -754,15 +791,17 @@ Modes:
             create_synthetic_test_data(paths)
 
         step += 1
-        print_step(step, total_steps, "Building FAISS embedding index...")
-        data_path = paths["data"] / "train.jsonl"
-        if data_path.exists() and data_path.stat().st_size > 0:
-            try:
-                build_embeddings(paths)
-            except Exception as e:
-                print(f"  Embeddings failed: {e}")
-        else:
-            print("  Skipped — no training data.")
+        print_step(step, total_steps, "Setting up FAISS embedding index...")
+        if not use_shipped_index(paths):
+            # No shipped index available — build from crawled data
+            data_path = paths["data"] / "train.jsonl"
+            if data_path.exists() and data_path.stat().st_size > 0:
+                try:
+                    build_embeddings(paths)
+                except Exception as e:
+                    print(f"  Embeddings failed: {e}")
+            else:
+                print("  Skipped — no training data and no shipped index.")
 
         step += 1
         print_step(step, total_steps, "Setting up skill library + judge prompt...")

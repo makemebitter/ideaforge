@@ -36,7 +36,7 @@ papers/
 neurips_papers/
 icml_papers/
 judge_training/data/
-judge_training/embeddings/
+# judge_training/embeddings/ is shipped via Git LFS (pre-built FAISS index)
 judge_training/output/_eval_runs/
 judge_training/output/_gepa_runs/
 judge_training/output/_gepa_reflection/

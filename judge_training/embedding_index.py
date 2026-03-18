@@ -155,15 +155,37 @@ def build_index(model_name: str = DEFAULT_MODEL, batch_size: int = 256):
     return index, metadata, model
 
 
+SHIPPED_EMBED_DIR = BASE_DIR / "embeddings"
+
+
+def _resolve_embed_dir() -> Path:
+    """Find the best available embeddings directory.
+
+    Priority:
+      1. User-built index in EMBED_DIR (from resources/ or IDEAFORGE_RESOURCES_DIR)
+      2. Pre-built index shipped with the repo (judge_training/embeddings/)
+    """
+    user_faiss = EMBED_DIR / "paper_embeddings.faiss"
+    if user_faiss.exists() and user_faiss.stat().st_size > 1000:
+        return EMBED_DIR
+
+    shipped_faiss = SHIPPED_EMBED_DIR / "paper_embeddings.faiss"
+    if shipped_faiss.exists() and shipped_faiss.stat().st_size > 1000:
+        return SHIPPED_EMBED_DIR
+
+    return EMBED_DIR  # will fail with FileNotFoundError in caller
+
+
 def query_index(query: str, top_k: int = 5,
                 model_name: str = DEFAULT_MODEL) -> list[dict]:
     """Query the index and return top-K most similar papers."""
-    faiss_path = EMBED_DIR / "paper_embeddings.faiss"
-    meta_path = EMBED_DIR / "embedding_metadata.jsonl"
-    config_path = EMBED_DIR / "config.json"
+    embed_dir = _resolve_embed_dir()
+    faiss_path = embed_dir / "paper_embeddings.faiss"
+    meta_path = embed_dir / "embedding_metadata.jsonl"
+    config_path = embed_dir / "config.json"
 
     if not faiss_path.exists():
-        raise FileNotFoundError(f"Run build_index first: {faiss_path}")
+        raise FileNotFoundError(f"No FAISS index found. Run build_index or install Git LFS: {faiss_path}")
 
     with open(config_path, "r") as f:
         config = json.load(f)

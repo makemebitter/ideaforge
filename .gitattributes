@@ -1,0 +1,2 @@
+*.faiss filter=lfs diff=lfs merge=lfs -text
+judge_training/embeddings/embedding_metadata.jsonl filter=lfs diff=lfs merge=lfs -text
