@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Config with credentials
+config.py
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Large / generated data
+*.pkl
+*.pdf
+research_data/
+papers/
+neurips_papers/
+icml_papers/
+
+# Judge training data (too large for public repo)
+judge_training/data/
+judge_training/embeddings/
+judge_training/output/_eval_runs/
+judge_training/output/_gepa_runs/
+judge_training/output/_gepa_reflection/
+judge_training/output/gepa_stage1/
+judge_training/output/gepa_stage2/
+judge_training/output/logs/
+
+# Experiment session data (large, per-run)
+idea_refiner/refinements/
+idea_refiner/.pytest_cache/
+idea_refiner/test_*.py
+
+# Full debate transcripts (very large, 100KB-700KB each)
+refinement_*.md
+idea_refiner/refinement_*.md
+
+# Test/scratch data
+test_sample.csv
+*.csv
+*.json
+!judge_training/output/training_log.json
+!judge_training/skills/index.json
+!examples/*.json
+
+# Early scratch files
+research_ideas.md
+research_ideas_critique.md
+
+# Claude internal
+.claude/
+.pytest_cache/

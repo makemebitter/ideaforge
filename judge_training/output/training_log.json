@@ -1,0 +1,21 @@
+{
+  "run_started": "2026-03-15T13:56:25.419774",
+  "run_finished": "2026-03-16T03:19:47.612853",
+  "total_wall_time_min": 803.37,
+  "stage1_model": "sonnet",
+  "stage1_evals": 500,
+  "stage1_best_score": 0.9114333333333333,
+  "stage1_skipped": false,
+  "stage2_model": "opus",
+  "stage2_evals": 150,
+  "stage2_best_score": 0.9165166666666668,
+  "final_prompt_path": "C:\\Users\\yhzha\\auto_research_bot\\judge_training\\output\\best_judge_prompt.md",
+  "final_prompt_len": 4346,
+  "train_size": 100,
+  "val_size": 30,
+  "use_skills": true,
+  "use_retrieval": true,
+  "reflection_model": "sonnet",
+  "batch_size": 10,
+  "seed": 42
+}

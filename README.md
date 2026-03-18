@@ -1,0 +1,237 @@
+# IdeaForge
+
+An AI-powered research **idea generation** and refinement system. It crawls top ML conference papers, trains a calibrated judge on real reviews, and uses a 3-agent adversarial debate loop to iteratively develop and stress-test research ideas until they meet publication-quality standards.
+
+Unlike code-generation tools or literature review assistants, IdeaForge focuses on the hardest part of research: **coming up with novel, publishable ideas** and stress-testing them against realistic peer review before you invest months of execution time.
+
+## System Overview
+
+```
+                    ┌─────────────┐
+                    │  Paper Crawl │  ICLR / NeurIPS / ICML
+                    │  + Reviews   │  ~50K papers + reviews
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │ Judge Train  │  GEPA optimization
+                    │ (91.7% acc)  │  650 evals, 2 stages
+                    └──────┬──────┘
+                           │
+              ┌────────────▼────────────────┐
+              │   Adversarial Idea Refiner   │
+              │                              │
+              │  Critic ──► Proposer ──► Judge│
+              │    │                     │   │
+              │    └─── rotate ◄─── score ≥8 │
+              └──────────────────────────────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Refined     │
+                    │  Research    │  Scored 4-9.5/10
+                    │  Ideas       │
+                    └─────────────┘
+```
+
+## Components
+
+### 1. Conference Paper Crawlers
+
+Crawl papers and reviews from top ML venues using the OpenReview API.
+
+```bash
+# Crawl ICLR papers
+python data_pipeline/openreview_crawler.py --year 2025
+
+# Crawl ICML papers
+python crawl_icml.py
+
+# Crawl NeurIPS papers
+python crawl_neurips.py
+
+# Download review PDFs for judge training data
+python download_review_pdfs.py
+```
+
+### 2. Judge Training (GEPA-Optimized)
+
+Trains a calibrated paper reviewer using **Guided Evolution with Prompt Ancestry (GEPA)** — a 2-stage optimization process that evolves a judge prompt against real conference reviews.
+
+**Training pipeline:**
+
+```
+data_pipeline.py     →  Parse 50K reviews into train/test
+generate_skills.py   →  Generate 28 domain-specific skill files
+embedding_index.py   →  Build FAISS index for similar-paper retrieval
+eval_harness.py      →  Evaluate judge predictions vs real scores
+optimize.py          →  GEPA optimize judge prompt (Stage 1: Sonnet, Stage 2: Opus)
+```
+
+**Results:**
+- **91.7% accuracy** (within ±1.5 of actual reviewer scores)
+- 2-stage GEPA: 500 Sonnet evals + 150 Opus evals
+- 13.4 hours total training time
+- Final prompt: [`judge_training/output/best_judge_prompt.md`](judge_training/output/best_judge_prompt.md)
+
+**3-layer knowledge architecture:**
+1. **Core prompt** (GEPA-optimized, ~4K tokens) — learned evaluation heuristics
+2. **Skill library** (28 files, dynamically loaded) — topic/dimension/calibration knowledge
+3. **Retrieved context** (FAISS search) — 5-10 most similar published papers with their actual scores
+
+### 3. Adversarial Idea Refiner
+
+A 3-agent debate system where a **Critic** attacks research ideas, a **Proposer** defends and improves them, and a **Judge** (GEPA-trained) scores each round with independent literature verification.
+
+```bash
+# Generate and refine an idea from scratch
+python idea_refiner/adversarial_refiner.py \
+  --from-scratch \
+  --domain "ML systems for efficient training" \
+  --target-venues "ICML,NeurIPS,ICLR" \
+  --rounds 40 \
+  --use-trained-judge \
+  --min-critics 2
+
+# Refine from a seed paper
+python idea_refiner/adversarial_refiner.py \
+  --seed-paper "2401.12345" \
+  --domain "video generation" \
+  --rounds 20 \
+  --use-trained-judge
+
+# Resume a previous session
+python idea_refiner/adversarial_refiner.py \
+  --resume idea_refiner/refinements/exp_.../session.pkl \
+  --rounds 40
+```
+
+**Key features:**
+- Stateful Claude Code sessions (each agent maintains context across rounds)
+- Critic rotation (fresh critics when score exceeds threshold for independent validation)
+- Judge does independent web searches to verify novelty claims
+- Proposer can DEFEND, PIVOT, or REPROPOSE based on critique severity
+- Experiment tracking with per-round snapshots
+
+**Typical score trajectory:** Ideas start at 4-5/10, climb to 7-8 within 3-4 rounds, then oscillate as fresh critics find new issues. The highest-scoring ideas (9+) tend to emerge through natural pivots from methods to benchmarks/measurement studies.
+
+## Results
+
+Across all experiments with the GEPA-trained judge:
+
+| Idea | Domain | Rounds | Peak Score |
+|------|--------|--------|------------|
+| PhysDPO Oracle Study | Physics video DPO | 20 | **9.5/10** |
+| PhysCounterfact Benchmark | Video physics | 20 | **9.0/10** |
+| TemporalAttrBind | Video generation | 20 | **8.5/10** |
+| DAS-3D Sparse Attention | ML systems | 40 | **8.0/10** |
+
+See [`examples/`](examples/) for the full refined proposals from the top-scoring ideas.
+
+See [`optimization_summary.md`](optimization_summary.md) for detailed analysis of what worked and what didn't across optimization runs.
+
+### Key Findings
+
+1. **Patient refinement > clever tricks.** 40 rounds of debate on a single idea outperformed tournament selection, early-kill, and forced reproposal combined.
+2. **Benchmark/measurement papers score highest.** The judge (correctly) rates them 9+ because they're inherently novel and hard to scoop, while method papers in crowded areas cap at 7-8.
+3. **The GEPA judge is genuinely rigorous.** It does independent literature searches, finds concurrent papers, and holds ideas to real novelty standards. 91.7% calibration accuracy against actual reviewer scores.
+4. **Score oscillation is a feature.** Fresh critics finding new issues (8→6→8) simulates reviewer diversity. The peaks represent "at least one reviewer would accept."
+
+## Repository Structure
+
+```
+ideaforge/
+├── README.md
+├── requirements.txt
+├── optimization_summary.md          # Detailed analysis of all runs
+│
+├── crawl_icml.py                    # ICML paper crawler
+├── crawl_neurips.py                 # NeurIPS paper crawler
+├── crawl_papers.py                  # General paper utilities
+├── crawl_authors.py                 # Author metadata crawler
+├── download_review_pdfs.py          # Review PDF downloader
+├── data_pipeline/                   # OpenReview crawling pipeline
+│   ├── openreview_crawler.py
+│   ├── crawl_with_reviews.py
+│   └── filter_*.py
+│
+├── judge_training/                  # GEPA judge training
+│   ├── PLAN.md                      # Training plan & architecture
+│   ├── data_pipeline.py             # Review data processing
+│   ├── generate_skills.py           # Skill library generation
+│   ├── embedding_index.py           # FAISS index builder
+│   ├── eval_harness.py              # Evaluation against real reviews
+│   ├── optimize.py                  # GEPA prompt optimization
+│   ├── claude_utils.py              # Claude API utilities
+│   ├── output/
+│   │   ├── best_judge_prompt.md     # Final GEPA-optimized prompt
+│   │   ├── stage1_best_prompt.md    # Stage 1 (Sonnet) best
+│   │   └── training_log.json        # Training run metadata
+│   └── skills/                      # 28 domain-specific skill files
+│       ├── topics/
+│       ├── dimensions/
+│       └── calibration/
+│
+├── idea_refiner/                    # 3-agent adversarial debate
+│   ├── adversarial_refiner.py       # Main refiner (Critic-Proposer-Judge)
+│   └── custom_agents.py             # Claude session management
+│
+└── examples/                        # Top refined ideas (AI-generated)
+    ├── physdpo_oracle_study_9.5.md
+    ├── physcounterfact_benchmark_9.0.md
+    └── das3d_sparse_attention_8.0.md
+```
+
+**Not included in repo** (too large / private):
+- `research_data/` — 2,766 downloaded PDFs (~29GB)
+- `judge_training/data/` — 50K parsed reviews (train/test splits)
+- `judge_training/embeddings/` — FAISS index for paper retrieval
+- `idea_refiner/refinements/` — Full experiment data (hundreds of round snapshots)
+- `refinement_*.md` — Full debate transcripts (100KB-700KB each)
+
+## Setup
+
+```bash
+# Clone
+git clone https://github.com/yourusername/ideaforge.git
+cd ideaforge
+
+# Install dependencies
+pip install -r requirements.txt
+
+# For judge training, also need:
+pip install openreview-py sentence-transformers faiss-cpu
+
+# The adversarial refiner requires Claude Code CLI:
+# https://docs.anthropic.com/en/docs/claude-code
+```
+
+## How It Works
+
+### The Adversarial Loop
+
+1. **Idea Generation**: Claude generates a research idea from scratch (or from a seed paper) in a specified domain
+2. **Baseline Scoring**: The GEPA-trained judge scores the raw idea (typically 4-5/10) with independent literature checks
+3. **Critic Phase**: A fresh Claude session attacks the idea — finds prior work, identifies logical gaps, challenges feasibility
+4. **Proposer Phase**: Another Claude session defends the idea — addresses critiques, pivots if needed, strengthens weak points
+5. **Judge Phase**: The trained judge re-scores with independent web searches, provides guidance to both sides
+6. **Repeat**: Steps 3-5 repeat for N rounds. When score exceeds threshold, the critic is rotated for independent validation
+
+### GEPA Judge Training
+
+Standard prompt engineering can't calibrate a reviewer against 50K real reviews. GEPA solves this:
+
+1. **Stage 1 (Sonnet, 500 evals)**: Evolves the judge prompt through mutations and crossovers, selecting for accuracy against real reviewer scores. Each eval scores 10 papers and compares to ground truth.
+2. **Stage 2 (Opus, 150 evals)**: Takes the Stage 1 winner and refines it with a more capable model, focusing on edge cases and calibration.
+3. **Skill Library**: 28 auto-generated files covering topic-specific evaluation criteria, score calibration data, and dimension-specific rubrics.
+4. **Retrieval**: At eval time, FAISS retrieves the 5-10 most similar published papers with their actual scores, grounding predictions in real data.
+
+## Limitations
+
+- The system requires Claude Code CLI and significant API costs for long runs
+- Judge scores are AI-predicted, not actual peer review — they approximate but don't replace human evaluation
+- Ideas in crowded ML subfields (attention, quantization, KV cache) reliably plateau at 7-8/10, reflecting genuine publication difficulty
+- The system works best for generating and refining ideas, not for validating experimental results
+- Example ideas in `examples/` are **AI-generated and not human-verified** — use as inspiration, not as validated research plans
+
+## License
+
+MIT License
