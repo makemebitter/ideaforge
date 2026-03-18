@@ -143,6 +143,7 @@ See [`optimization_summary.md`](optimization_summary.md) for detailed analysis o
 ideaforge/
 ├── README.md
 ├── requirements.txt
+├── setup_pipeline.py                # One-command setup (crawl + build + verify)
 ├── optimization_summary.md          # Detailed analysis of all runs
 │
 ├── crawl_icml.py                    # ICML paper crawler
@@ -189,22 +190,115 @@ ideaforge/
 - `idea_refiner/refinements/` — Full experiment data (hundreds of round snapshots)
 - `refinement_*.md` — Full debate transcripts (100KB-700KB each)
 
-## Setup
+## Setup & Reproduction
+
+### Prerequisites
+
+- Python 3.10+
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (for the adversarial refiner)
+- An [OpenReview](https://openreview.net/) account (for crawling papers)
+- Anthropic API access (Claude Code uses this under the hood)
+
+### Quick Start (One Command)
 
 ```bash
-# Clone
-git clone https://github.com/yourusername/ideaforge.git
+git clone https://github.com/makemebitter/ideaforge.git
 cd ideaforge
-
-# Install dependencies
 pip install -r requirements.txt
+pip install sentence-transformers faiss-cpu numpy
 
-# For judge training, also need:
-pip install openreview-py sentence-transformers faiss-cpu
+# Full setup: crawl papers, build training data, create FAISS index
+python setup_pipeline.py --email your@email.com --password your_openreview_pw
 
-# The adversarial refiner requires Claude Code CLI:
-# https://docs.anthropic.com/en/docs/claude-code
+# Or just verify what's ready
+python setup_pipeline.py --check
 ```
+
+This crawls ~50K papers from ICLR/ICML/NeurIPS, builds the embedding index, and verifies the pre-trained judge. Takes ~2-3 hours. After it finishes, you can immediately run the idea refiner.
+
+### End-to-End Reproduction (Manual)
+
+The full pipeline has 4 stages. You can skip stages 1-3 if you just want to use the pre-trained judge (already included in the repo).
+
+**Stage 1: Crawl papers + reviews**
+
+```bash
+# Create config.py with your OpenReview credentials
+echo 'EMAIL = "your@email.com"' > config.py
+echo 'PASSWORD = "your_openreview_password"' >> config.py
+
+# Crawl ICLR papers (outputs to research_data/iclr/)
+python data_pipeline/openreview_crawler.py --year 2025
+
+# Crawl ICML and NeurIPS
+python crawl_icml.py
+python crawl_neurips.py
+```
+
+**Stage 2: Build judge training data**
+
+```bash
+# Parse crawled reviews into train/test JSONL (outputs to judge_training/data/)
+cd judge_training
+python data_pipeline.py
+
+# Generate the 28 skill files (outputs to judge_training/skills/)
+python generate_skills.py
+
+# Build FAISS embedding index for similar-paper retrieval
+# Uses all-MiniLM-L6-v2 by default (~80MB model, downloads automatically)
+# Reads from judge_training/data/{train,test}.jsonl
+# Outputs to judge_training/embeddings/
+python embedding_index.py
+```
+
+**Stage 3: Train the judge (optional — pre-trained prompt included)**
+
+```bash
+# GEPA optimization: ~13 hours, ~$200 in API costs
+# Stage 1: 500 evals with Sonnet
+python optimize.py --stage 1 --evals 500
+
+# Stage 2: 150 evals with Opus (refines Stage 1 winner)
+python optimize.py --stage 2 --evals 150
+```
+
+The pre-trained judge prompt is already at [`judge_training/output/best_judge_prompt.md`](judge_training/output/best_judge_prompt.md) — you can skip this stage entirely.
+
+**Stage 4: Generate and refine ideas**
+
+```bash
+# Make sure Claude Code CLI is installed and authenticated
+claude --version
+
+# Run the adversarial refiner (this is the main event)
+python idea_refiner/adversarial_refiner.py \
+  --from-scratch \
+  --domain "your research domain here" \
+  --target-venues "ICML,NeurIPS,ICLR" \
+  --rounds 40 \
+  --use-trained-judge \
+  --min-critics 2
+
+# Results saved to idea_refiner/refinements/exp_<timestamp>/
+```
+
+**Recommended settings** (based on our [optimization experiments](optimization_summary.md)):
+- `--rounds 40` — more rounds > clever tricks
+- `--max-reproposals 0` — let ideas refine naturally, don't force restarts
+- `--early-kill-threshold 0` — disable early kill
+- `--critic-threshold 8.0` — rotate critics when score hits 8
+- `--min-critics 2` — require at least 2 independent critics
+- Run **one experiment at a time** to avoid API rate limits
+
+### Cost Estimates
+
+| Stage | Time | API Cost |
+|-------|------|----------|
+| Crawling | ~2 hours | Free (OpenReview API) |
+| FAISS index | ~10 min | Free (local) |
+| Judge training | ~13 hours | ~$200 (Claude API) |
+| Idea refinement (40 rounds) | ~4-8 hours | ~$30-50 per run |
 
 ## How It Works
 
