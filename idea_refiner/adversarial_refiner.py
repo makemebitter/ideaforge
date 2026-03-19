@@ -1350,12 +1350,18 @@ If the idea pivoted, EXPLICITLY tell the critic to re-search for the new directi
 
 
 def get_critic_turn_message(
-    current_idea: str,
     round_num: int,
-    judge_assessment: str = "",
+    exp_dir: Path,
+    judge_assessment_file: str = "",
     last_proposer_action: str = "",
 ) -> str:
-    """Per-round message sent to the Critic session."""
+    """Per-round message sent to the Critic session.
+
+    References files on disk instead of inlining content, keeping the
+    turn message small regardless of how large the idea or judge output is.
+    The agent writes its output to a file rather than stdout.
+    """
+    output_file = f"round{round_num}_critic.md"
     parts = [f"=== ROUND {round_num} ==="]
     if last_proposer_action and last_proposer_action in ("REPROPOSED", "PIVOTED"):
         parts.append(
@@ -1364,51 +1370,92 @@ def get_critic_turn_message(
             f"You MUST run NEW web searches targeting the current idea's specific "
             f"technique, claimed novelty, and core keywords. Do NOT rely on prior searches."
         )
-    if judge_assessment:
-        parts.append(f"\n--- JUDGE'S GUIDANCE FOR YOU (from previous round) ---\n{judge_assessment}")
-    parts.append(f"\n--- CURRENT IDEA TO CRITIQUE ---\n{current_idea}")
-    parts.append("\nProvide your critique following your output format. Remember: web search is MANDATORY.")
+    if judge_assessment_file:
+        parts.append(
+            f"\n--- JUDGE'S GUIDANCE FOR YOU (from previous round) ---"
+            f"\nRead the judge's assessment from: {exp_dir / judge_assessment_file}"
+        )
+    parts.append(
+        f"\n--- CURRENT IDEA TO CRITIQUE ---"
+        f"\nRead the current idea from: {exp_dir / 'current_idea.md'}"
+    )
+    parts.append(
+        f"\nProvide your critique following your output format. Remember: web search is MANDATORY."
+        f"\n\n**IMPORTANT**: Write your COMPLETE critique to the file: {exp_dir / output_file}"
+    )
     return "\n".join(parts)
 
 
 def get_proposer_turn_message(
-    original_idea: str,
-    current_idea: str,
-    critique: str,
     round_num: int,
-    judge_assessment: str = "",
+    exp_dir: Path,
+    critic_file: str,
+    judge_assessment_file: str = "",
 ) -> str:
-    """Per-round message sent to the Proposer session."""
+    """Per-round message sent to the Proposer session.
+
+    References files on disk instead of inlining content, keeping the
+    turn message small regardless of how large the idea or critique is.
+    The agent writes its output to a file rather than stdout.
+    """
+    output_file = f"round{round_num}_proposer.md"
     parts = [f"=== ROUND {round_num} ==="]
-    if judge_assessment:
-        parts.append(f"\n--- JUDGE'S GUIDANCE FOR YOU (from previous round) ---\n{judge_assessment}")
-    parts.append(f"\n--- ORIGINAL IDEA (for reference) ---\n{original_idea}")
-    parts.append(f"\n--- CURRENT VERSION ---\n{current_idea}")
-    parts.append(f"\n--- LATEST CRITIQUE ---\n{critique}")
-    parts.append("\nRespond to the critique following your output format.")
+    if judge_assessment_file:
+        parts.append(
+            f"\n--- JUDGE'S GUIDANCE FOR YOU (from previous round) ---"
+            f"\nRead the judge's assessment from: {exp_dir / judge_assessment_file}"
+        )
+    parts.append(
+        f"\n--- ORIGINAL IDEA (for reference) ---"
+        f"\nRead from: {exp_dir / 'original_idea.md'}"
+    )
+    parts.append(
+        f"\n--- CURRENT VERSION ---"
+        f"\nRead from: {exp_dir / 'current_idea.md'}"
+    )
+    parts.append(
+        f"\n--- LATEST CRITIQUE ---"
+        f"\nRead from: {exp_dir / critic_file}"
+    )
+    parts.append(
+        f"\nRead all the files above, then respond to the critique following your output format."
+        f"\n\n**IMPORTANT**: Write your COMPLETE response to the file: {exp_dir / output_file}"
+        f"\nAlso update {exp_dir / 'current_idea.md'} with ONLY the final idea (the Proposed Idea section)."
+    )
     return "\n".join(parts)
 
 
 def get_judge_turn_message(
-    current_idea: str,
-    critique: str,
-    proposer_response: str,
     round_num: int,
     total_rounds: int,
+    exp_dir: Path,
+    critic_file: str,
+    proposer_file: str,
 ) -> str:
-    """Per-round message sent to the Judge session."""
+    """Per-round message sent to the Judge session.
+
+    References files on disk instead of inlining content, keeping the
+    turn message small regardless of how large the debate outputs are.
+    The agent writes its output to a file rather than stdout.
+    """
+    output_file = f"round{round_num}_judge.md"
     parts = [
         f"=== ROUND {round_num}/{total_rounds} ===",
-        f"\n--- CURRENT IDEA ---\n{current_idea}",
-        f"\n--- CRITIC'S REVIEW ---\n{critique}",
-        f"\n--- PROPOSER'S RESPONSE ---\n{proposer_response}",
-        "\nEvaluate this round following your output format.",
+        f"\n--- CURRENT IDEA ---"
+        f"\nRead from: {exp_dir / 'current_idea.md'}",
+        f"\n--- CRITIC'S REVIEW ---"
+        f"\nRead from: {exp_dir / critic_file}",
+        f"\n--- PROPOSER'S RESPONSE ---"
+        f"\nRead from: {exp_dir / proposer_file}",
+        f"\nRead all the files above, then evaluate this round following your output format."
+        f"\n\n**IMPORTANT**: Write your COMPLETE evaluation to the file: {exp_dir / output_file}",
     ]
     return "\n".join(parts)
 
 
-def get_judge_initial_turn_message(idea: str, total_rounds: int) -> str:
+def get_judge_initial_turn_message(exp_dir: Path, total_rounds: int) -> str:
     """Round 0 message: Judge scores the raw initial idea before debate begins."""
+    output_file = "round0_judge_baseline.md"
     return f"""=== ROUND 0/{total_rounds} — INITIAL ASSESSMENT ===
 
 This is the raw initial idea BEFORE any adversarial debate. No critic has reviewed
@@ -1419,13 +1466,15 @@ Use your tools (web search, paper databases) to check novelty and feasibility,
 just as the critic will. Score honestly — this baseline anchors the entire debate.
 
 --- INITIAL IDEA ---
-{idea}
+Read from: {exp_dir / 'original_idea.md'}
 
-Evaluate this idea following your output format. For the "What the Critic Got Right"
-and "What the Critic Missed" sections, instead provide "Initial Strengths" and
-"Initial Weaknesses" since no critique has happened yet. For guidance sections,
-describe what the Critic should look for first and what the Proposer should
-be prepared to defend.
+Read the file above, then evaluate this idea following your output format. For the
+"What the Critic Got Right" and "What the Critic Missed" sections, instead provide
+"Initial Strengths" and "Initial Weaknesses" since no critique has happened yet.
+For guidance sections, describe what the Critic should look for first and what the
+Proposer should be prepared to defend.
+
+**IMPORTANT**: Write your COMPLETE evaluation to the file: {exp_dir / output_file}
 """
 
 
@@ -1589,15 +1638,35 @@ def write_synthesis_context(exp_dir: Path, original_idea: str, history: list[str
     return ctx_path
 
 
-def get_synthesis_turn_message(context_file: Path) -> str:
+def get_synthesis_turn_message(context_file: Path, output_file: Path) -> str:
     """Short turn message pointing the synthesis agent to the context file."""
-    return f'Read the complete debate history from "{context_file.resolve()}" and synthesize the FINAL research idea following your output format.'
+    return (
+        f'Read the complete debate history from "{context_file.resolve()}" '
+        f'and synthesize the FINAL research idea following your output format.\n\n'
+        f'**IMPORTANT**: Write your COMPLETE synthesis to the file: {output_file}'
+    )
 
 
 def _is_agent_error(response: str) -> bool:
     """Check if a response indicates an agent-level failure rather than real output."""
     error_prefixes = ("Agent error", "Agent hit usage limit", "Agent timed out", "Agent returned empty output", "Error:")
     return response.startswith(error_prefixes)
+
+
+def _read_agent_output(exp_dir: Path, output_file: str, stdout: str) -> str:
+    """Read agent output from file, falling back to stdout.
+
+    Agents are instructed to write their output to a specific file.  If the
+    file exists and is non-empty we prefer it (the agent followed instructions).
+    Otherwise we fall back to the captured stdout (legacy behaviour or agent
+    didn't write).
+    """
+    path = exp_dir / output_file
+    if path.exists():
+        content = path.read_text(encoding="utf-8").strip()
+        if content:
+            return content
+    return stdout
 
 
 def _call_agent(
@@ -1633,10 +1702,16 @@ def _call_agent(
 
     response = run_claude_resume(session_id, turn_message, timeout, model, exp_dir, label, cwd=cwd)
 
-    # If the session was lost, recover by creating a fresh one with a new ID
-    if _is_agent_error(response) and "no conversation found" in response.lower():
+    # If the session was lost or timed out (context too large), recover with a fresh session
+    _recoverable = (
+        "no conversation found" in response.lower()
+        or "timed out" in response.lower()
+        or "usage limit" in response.lower()
+    )
+    if _is_agent_error(response) and _recoverable:
         new_id = str(uuid.uuid4())
-        safe_print(f"  [RECOVER] Session {session_id[:8]}... lost, creating fresh session {new_id[:8]}...")
+        reason = "lost" if "no conversation" in response.lower() else "context exhaustion/timeout"
+        safe_print(f"  [RECOVER] Session {session_id[:8]}... {reason}, creating fresh session {new_id[:8]}...")
         response = run_claude_create(new_id, system_prompt, turn_message, timeout, model, exp_dir, label, cwd=cwd)
         # Persist the new session ID so future rounds resume correctly
         if session is not None and role:
@@ -1713,16 +1788,17 @@ def run_refinement_session(
             print(f"{'='*70}")
             print("\n[JUDGE] Scoring raw initial idea before debate begins...")
         turn_msg = get_judge_initial_turn_message(
-            session.original_idea, session.total_rounds
+            exp_dir, session.total_rounds
         )
         if use_trained_judge:
             turn_msg = _enrich_with_retrieval(turn_msg, session.original_idea)
-        baseline = run_claude_create(
+        baseline_stdout = run_claude_create(
             session.judge_session_id, judge_sys, turn_msg, timeout=1800,
             exp_dir=exp_dir, label="r0_judge", cwd=str(exp_dir),
         )
-        if _is_agent_error(baseline):
-            raise RuntimeError(f"Initial judge failed: {baseline[:200]}")
+        if _is_agent_error(baseline_stdout):
+            raise RuntimeError(f"Initial judge failed: {baseline_stdout[:200]}")
+        baseline = _read_agent_output(exp_dir, "round0_judge_baseline.md", baseline_stdout)
         session.record_judge(0, baseline)
         save_round_output(exp_dir, 0, "JUDGE_BASELINE", baseline)
         session.save()
@@ -1764,11 +1840,14 @@ def run_refinement_session(
 
         proposer_is_first = (round_num == 1)
 
-        # Previous round's judge assessment (Round 0 baseline for round 1)
+        # Previous round's judge file (Round 0 baseline for round 1)
         prev_round = round_num - 1
-        prev_judge = ""
-        if prev_round in session.round_results:
-            prev_judge = session.round_results[prev_round].get('judge', '')
+        prev_judge_file = ""
+        if prev_round in session.round_results and session.round_results[prev_round].get('judge'):
+            if prev_round == 0:
+                prev_judge_file = "round0_judge_baseline.md"
+            else:
+                prev_judge_file = f"round{prev_round}_judge.md"
 
         # Detect if the proposer pivoted/reproposed last round
         last_action = ""
@@ -1789,20 +1868,34 @@ def run_refinement_session(
                     print(f"  (NEW INDEPENDENT CRITIC — fresh perspective, no prior debate context)")
             # Fresh (rotated) critics get NO judge guidance — they must form
             # their own independent assessment from the idea alone.
-            critic_judge_guidance = "" if session.critic_is_fresh else prev_judge
+            critic_judge_file = "" if session.critic_is_fresh else prev_judge_file
             turn_msg = get_critic_turn_message(
-                session.current_idea, round_num, judge_assessment=critic_judge_guidance,
+                round_num, exp_dir, judge_assessment_file=critic_judge_file,
                 last_proposer_action=last_action,
             )
-            critique = _call_agent(
+            critic_output_file = f"round{round_num}_critic.md"
+            stdout = _call_agent(
                 session.critic_session_id, critic_sys, turn_msg,
                 is_first_call=session.critic_is_fresh,
                 exp_dir=exp_dir, label=f"r{round_num}_critic",
                 session=session, role="critic", cwd=str(exp_dir),
             )
-            if _is_agent_error(critique):
-                safe_print(f"  [ERROR] Critic agent failed: {critique[:200]}")
-                raise RuntimeError(f"Critic agent failed on round {round_num}: {critique[:200]}")
+            if _is_agent_error(stdout):
+                safe_print(f"  [WARN] Critic agent failed: {stdout[:200]}")
+                safe_print(f"  [RECOVER] Retrying critic with fresh session...")
+                new_id = str(uuid.uuid4())
+                session.critic_session_id = new_id
+                session.critic_is_fresh = True
+                stdout = _call_agent(
+                    new_id, critic_sys, turn_msg,
+                    is_first_call=True,
+                    exp_dir=exp_dir, label=f"r{round_num}_critic",
+                    session=session, role="critic", cwd=str(exp_dir),
+                )
+                if _is_agent_error(stdout):
+                    safe_print(f"  [ERROR] Critic retry also failed: {stdout[:200]}")
+                    raise RuntimeError(f"Critic agent failed on round {round_num}: {stdout[:200]}")
+            critique = _read_agent_output(exp_dir, critic_output_file, stdout)
             session.critic_is_fresh = False  # subsequent calls to this critic use resume
             session.record_critic(round_num, critique)
             save_round_output(exp_dir, round_num, "CRITIC", critique)
@@ -1830,23 +1923,46 @@ def run_refinement_session(
                     options = "DEFEND or PIVOT" if session.refinement_phase == "refine" else "DEFEND, PIVOT, or REPROPOSE"
                     print(f"\n{'-'*50}")
                     print(f"\n[PROPOSER] Responding (can {options})...")
+            critic_file = f"round{round_num}_critic.md"
             turn_msg = get_proposer_turn_message(
-                session.original_idea, session.current_idea, critique,
-                round_num, judge_assessment=prev_judge,
+                round_num, exp_dir, critic_file=critic_file,
+                judge_assessment_file=prev_judge_file,
             )
             if force_repropose_prefix:
                 turn_msg = force_repropose_prefix + "\n\n" + turn_msg
-            response = _call_agent(
+            proposer_output_file = f"round{round_num}_proposer.md"
+            stdout = _call_agent(
                 session.proposer_session_id, proposer_sys, turn_msg,
                 is_first_call=proposer_is_first,
                 exp_dir=exp_dir, label=f"r{round_num}_proposer",
                 session=session, role="proposer", cwd=str(exp_dir),
             )
-            if _is_agent_error(response):
-                safe_print(f"  [ERROR] Proposer agent failed: {response[:200]}")
-                raise RuntimeError(f"Proposer agent failed on round {round_num}: {response[:200]}")
+            if _is_agent_error(stdout):
+                safe_print(f"  [WARN] Proposer agent failed: {stdout[:200]}")
+                safe_print(f"  [RECOVER] Retrying proposer with fresh session...")
+                new_id = str(uuid.uuid4())
+                session.proposer_session_id = new_id
+                proposer_is_first = True
+                stdout = _call_agent(
+                    new_id, proposer_sys, turn_msg,
+                    is_first_call=True,
+                    exp_dir=exp_dir, label=f"r{round_num}_proposer",
+                    session=session, role="proposer", cwd=str(exp_dir),
+                )
+                if _is_agent_error(stdout):
+                    safe_print(f"  [ERROR] Proposer retry also failed: {stdout[:200]}")
+                    raise RuntimeError(f"Proposer agent failed on round {round_num}: {stdout[:200]}")
+            response = _read_agent_output(exp_dir, proposer_output_file, stdout)
             session.record_proposer(round_num, response)
             save_round_output(exp_dir, round_num, "PROPOSER", response)
+            # If the agent wrote current_idea.md directly, use it; otherwise
+            # fall back to our extraction from the proposer response.
+            agent_idea_path = exp_dir / "current_idea.md"
+            if agent_idea_path.exists():
+                agent_idea = agent_idea_path.read_text(encoding="utf-8").strip()
+                if agent_idea and agent_idea != session.original_idea:
+                    session.current_idea = agent_idea
+            (exp_dir / "current_idea.md").write_text(session.current_idea, encoding="utf-8")
             session.save()
             if verbose:
                 safe_print(f"\n{response}")
@@ -1863,14 +1979,17 @@ def run_refinement_session(
                     print("\n[JUDGE] NEW INDEPENDENT JUDGE — fresh evaluation, no prior score history")
                 else:
                     print("\n[JUDGE] Evaluating round...")
+            critic_file = f"round{round_num}_critic.md"
+            proposer_file = f"round{round_num}_proposer.md"
             turn_msg = get_judge_turn_message(
-                session.current_idea, critique, response,
-                round_num, session.total_rounds,
+                round_num, session.total_rounds, exp_dir,
+                critic_file=critic_file, proposer_file=proposer_file,
             )
             if use_trained_judge:
                 turn_msg = _enrich_with_retrieval(turn_msg, session.current_idea)
+            judge_output_file = f"round{round_num}_judge.md"
             judge_first = session.judge_is_fresh
-            judgement = _call_agent(
+            stdout = _call_agent(
                 session.judge_session_id, judge_sys, turn_msg,
                 is_first_call=judge_first,
                 exp_dir=exp_dir, label=f"r{round_num}_judge",
@@ -1878,9 +1997,25 @@ def run_refinement_session(
             )
             if judge_first:
                 session.judge_is_fresh = False
-            if _is_agent_error(judgement):
-                safe_print(f"  [ERROR] Judge agent failed: {judgement[:200]}")
-                raise RuntimeError(f"Judge agent failed on round {round_num}: {judgement[:200]}")
+            if _is_agent_error(stdout):
+                safe_print(f"  [WARN] Judge agent failed: {stdout[:200]}")
+                safe_print(f"  [RECOVER] Retrying judge with fresh session...")
+                new_id = str(uuid.uuid4())
+                session.judge_session_id = new_id
+                session.judge_is_fresh = True
+                judge_first = True
+                stdout = _call_agent(
+                    new_id, judge_sys, turn_msg,
+                    is_first_call=True,
+                    exp_dir=exp_dir, label=f"r{round_num}_judge",
+                    session=session, role="judge", cwd=str(exp_dir),
+                )
+                if judge_first:
+                    session.judge_is_fresh = False
+                if _is_agent_error(stdout):
+                    safe_print(f"  [ERROR] Judge retry also failed: {stdout[:200]}")
+                    raise RuntimeError(f"Judge agent failed on round {round_num}: {stdout[:200]}")
+            judgement = _read_agent_output(exp_dir, judge_output_file, stdout)
             session.record_judge(round_num, judgement)
             save_round_output(exp_dir, round_num, "JUDGE", judgement)
             session.save()
@@ -1989,15 +2124,17 @@ def run_refinement_session(
             print("\n[WORKING] Synthesizing debate into final refined idea...")
 
         ctx_file = write_synthesis_context(exp_dir, session.original_idea, session.history)
-        turn_msg = get_synthesis_turn_message(ctx_file)
+        synthesis_output_file = "round0_synthesis.md"
+        turn_msg = get_synthesis_turn_message(ctx_file, exp_dir / synthesis_output_file)
         synthesis_sid = str(uuid.uuid4())
-        final_idea = run_claude_create(
+        synthesis_stdout = run_claude_create(
             synthesis_sid, _SYNTHESIS_SYSTEM_PROMPT, turn_msg, timeout=1800,
             exp_dir=exp_dir, label="synthesis", cwd=str(exp_dir),
         )
-        if _is_agent_error(final_idea):
-            raise RuntimeError(f"Synthesis agent failed: {final_idea[:200]}")
+        if _is_agent_error(synthesis_stdout):
+            raise RuntimeError(f"Synthesis agent failed: {synthesis_stdout[:200]}")
 
+        final_idea = _read_agent_output(exp_dir, synthesis_output_file, synthesis_stdout)
         session.record_synthesis(final_idea)
         save_round_output(exp_dir, 0, "SYNTHESIS", final_idea)
         session.save()
@@ -2106,6 +2243,7 @@ def adversarial_refinement(
         )
 
         (exp_dir / "original_idea.md").write_text(idea, encoding="utf-8")
+        (exp_dir / "current_idea.md").write_text(idea, encoding="utf-8")
 
         save_experiment_metadata(exp_dir, {
             "experiment_id": session.experiment_id,
