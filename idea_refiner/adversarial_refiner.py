@@ -111,11 +111,11 @@ class RefinementSession:
     tournament_titles: List[str] = field(default_factory=list)  # titles for each candidate
 
     # Early kill: force repropose if score < threshold after N rounds
-    early_kill_threshold: float = 7.0  # minimum score after early_kill_rounds
+    early_kill_threshold: float = 5.0  # minimum score after early_kill_rounds
     early_kill_rounds: int = 3  # check score after this many rounds
 
     # Score plateau detection: force repropose if no improvement for N consecutive rounds
-    plateau_patience: int = 2  # number of rounds without improvement before forcing repropose
+    plateau_patience: int = 4  # number of rounds without improvement before forcing repropose
 
     # Repropose budget: maximum number of full reproposals allowed
     max_reproposals: int = 3  # allow up to N full reproposals before settling
@@ -574,7 +574,7 @@ class RefinementSession:
         The judge is also replaced to prevent score anchoring — a judge that
         has watched the idea evolve over many rounds will be biased toward
         the score trajectory it established. A fresh judge evaluates the
-        idea on its own merits.
+        idea on its own merits, which is the true test of idea quality.
 
         Returns the new critic session ID.
         """
@@ -1192,7 +1192,7 @@ def _enrich_with_retrieval(turn_msg: str, idea_text: str) -> str:
         if judge_training_dir not in sys.path:
             sys.path.insert(0, judge_training_dir)
         import embedding_index
-        results = embedding_index.query_index(idea_text[:1000], top_k=7)
+        results = embedding_index.query_index(idea_text[:1000], top_k=15)
         if results:
             context = embedding_index.format_retrieval_context(results)
             print(f"[RETRIEVAL] Injected {len(results)} similar papers into judge context")
@@ -1259,11 +1259,28 @@ paper's topic area. The skill files contain:
 - Score distribution and acceptance bar
 - Real reviewer quotes at each score level
 
+IMPORTANT — YOU ARE SCORING AN IDEA, NOT A FINISHED PAPER:
+You are evaluating a research IDEA/PROPOSAL, not a submitted paper with
+completed experiments. Adjust your scoring accordingly:
+- Do NOT penalize for "lack of empirical results" — experiments haven't been
+  run yet. Instead, evaluate whether the PROPOSED experiments are well-designed
+  and whether the idea WOULD be publishable IF the experiments confirm the
+  hypotheses.
+- Score the idea's POTENTIAL: novelty of the core insight, soundness of the
+  proposed approach, quality of the experimental plan, and feasibility.
+- A brilliant idea with a solid experimental plan and clear novelty CAN score
+  7-8+ even without completed experiments. Reserve 9-10 for ideas that would
+  be genuinely field-changing.
+- The question is: "If this idea is executed well, what score would the
+  resulting paper receive?" Score based on that projection.
+
 Your scoring must be CALIBRATED against real conference standards:
 - 1-3: Fundamentally flawed or already published
-- 4-5: Below average, significant weaknesses
-- 6-7: Solid work, above acceptance threshold
-- 8-10: Excellent, would be spotlight/oral at top venue
+- 4-5: Below average, incremental or narrow contribution
+- 6: Solid idea, publishable with good execution
+- 7: Strong idea with clear novelty, would likely be accepted
+- 8: Excellent idea, potential oral/spotlight if well-executed
+- 9-10: Field-changing insight, very rare
 
 OUTPUT FORMAT:
 ## Score: [X/10]
@@ -2196,9 +2213,9 @@ def adversarial_refinement(
     critic_threshold: float = 8.0,
     min_critics: int = 3,
     use_trained_judge: bool = False,
-    early_kill_threshold: float = 7.0,
+    early_kill_threshold: float = 5.0,
     early_kill_rounds: int = 3,
-    plateau_patience: int = 2,
+    plateau_patience: int = 4,
     max_reproposals: int = 3,
 ) -> str:
     """
@@ -2660,8 +2677,8 @@ def main():
     parser.add_argument(
         "--early-kill-threshold",
         type=float,
-        default=7.0,
-        help="Force repropose if score below this after --early-kill-rounds (default: 7.0)"
+        default=5.0,
+        help="Force repropose if score below this after --early-kill-rounds (default: 5.0)"
     )
     parser.add_argument(
         "--early-kill-rounds",
@@ -2672,8 +2689,8 @@ def main():
     parser.add_argument(
         "--plateau-patience",
         type=int,
-        default=2,
-        help="Force repropose if score doesn't improve for this many consecutive rounds (default: 2)"
+        default=4,
+        help="Force repropose if score doesn't improve for this many consecutive rounds (default: 4)"
     )
     parser.add_argument(
         "--max-reproposals",
